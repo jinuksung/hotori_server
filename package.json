@@ -1,0 +1,33 @@
+{
+  "name": "hotori_server",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "crawl": "tsx src/jobs/crawl.ts",
+    "affiliate": "tsx src/jobs/affiliate.ts",
+    "refresh": "tsx src/jobs/refreshMetrics.ts",
+    "typecheck": "tsc --noEmit",
+    "test:parsers": "tsx tests/parsers/fmkorea.smoke.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "bottleneck": "^2.19.5",
+    "cheerio": "^1.2.0",
+    "dotenv": "^17.2.3",
+    "pg": "^8.17.2",
+    "pino": "^10.3.0",
+    "playwright": "^1.58.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^25.0.10",
+    "@types/pg": "^8.16.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  }
+}
