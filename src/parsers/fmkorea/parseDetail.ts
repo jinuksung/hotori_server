@@ -1,97 +1,192 @@
 import * as cheerio from "cheerio";
-import { z } from "zod";
-import type { ParseDetailResult, Result, ShippingType } from "../../types";
-import { extractDomain, normalizeUrl } from "../../utils/url";
 
-const BASE_URL = "https://www.fmkorea.com";
+export type FmHotdealDetail = {
+  site: "fmkorea";
+  board: "hotdeal";
+  documentSrl: number;
+  url: string;
+  canonicalUrl?: string;
 
-const parseDetailSchema = z.object({
-  price: z.number().nullable(),
-  shippingType: z.union([z.literal("FREE"), z.literal("PAID"), z.literal("UNKNOWN")]),
-  soldOut: z.boolean(),
-  outboundLinks: z.array(z.string().url()),
-});
+  title?: string;
+  category?: string;
+  mall?: string;
+  productName?: string;
+  price?: string;
+  shipping?: string;
+  dealUrl?: string;
 
-function parsePrice(text: string): number | null {
-  const cleaned = text.replace(/,/g, " ");
-  const match = cleaned.match(/(\d{1,3}(?:\s?\d{3})*(?:\.\d{1,2})?)/);
-  if (!match) return null;
-  const num = Number(match[1].replace(/\s+/g, ""));
-  return Number.isFinite(num) ? num : null;
+  author?: string;
+  createdAtText?: string; // "2026.01.28 19:38"
+  createdAtRegdate?: string; // "20260128193844" (raw)
+  viewCount?: number;
+  upvoteCount?: number;
+  commentCount?: number;
+
+  summaryText?: string;
+  ogImage?: string;
+  contentImages?: string[];
+
+  relevantDeals?: Array<{
+    url: string;
+    title: string;
+    price?: string;
+    regdate?: string; // "2026-01-28"
+  }>;
+};
+
+function normalizeText(s: string) {
+  return s.replace(/\s+/g, " ").trim();
 }
 
-function detectShippingType(text: string): ShippingType {
-  if (text.includes("무료배송") || text.includes("배송비무료")) return "FREE";
-  if (text.includes("배송비") || text.includes("유료배송")) return "PAID";
-  return "UNKNOWN";
+function pickNumber(s: string) {
+  const n = Number(s.replace(/[^0-9]/g, ""));
+  return Number.isFinite(n) ? n : undefined;
 }
 
-function detectSoldOut(text: string, $: cheerio.CheerioAPI): boolean {
-  if (text.includes("품절") || text.includes("SOLD OUT")) return true;
-  if ($(".soldout, .sold-out, .btn_soldout, .sold_out").length > 0) return true;
-  return false;
-}
+export function parseFmHotdealDetail(html: string): FmHotdealDetail {
+  const $ = cheerio.load(html);
 
-function extractOutboundLinks($: cheerio.CheerioAPI): string[] {
-  const urls = new Set<string>();
-  $("a[href]").each((_, el) => {
-    const href = $(el).attr("href");
-    if (!href) return;
-    const normalized = normalizeUrl(href, BASE_URL);
-    if (!normalized) return;
-    const domain = extractDomain(normalized);
-    if (!domain) return;
-    if (domain.endsWith("fmkorea.com")) return;
-    urls.add(normalized);
-  });
-  return Array.from(urls);
-}
+  // document_srl: canonical 먼저 시도, 실패 시 window 변수에서 추출
+  const canonical = $('link[rel="canonical"]').attr("href")?.trim();
+  const docFromCanonical = canonical?.match(/\/(\d+)(?:$|\?)/)?.[1];
+  const docFromScript =
+    html.match(/window\.current_document_srl\s*=\s*parseInt\('(\d+)'\)/)?.[1] ??
+    html.match(/current_document_srl\s*=\s*parseInt\('(\d+)'\)/)?.[1];
 
-export function parseDetail(html: string): Result<ParseDetailResult> {
-  try {
-    const $ = cheerio.load(html);
-    const bodyText = $("body").text();
+  const documentSrl = Number(docFromCanonical ?? docFromScript ?? 0);
 
-    const priceTextCandidates = [
-      $(".price, .deal_price, .sum, .contents .price").first().text(),
-      $("body").text(),
-    ].filter(Boolean);
-    let price: number | null = null;
-    for (const text of priceTextCandidates) {
-      price = parsePrice(text);
-      if (price !== null) break;
+  const title = normalizeText($(".rd_hd h1 .np_18px_span").first().text());
+
+  const category = normalizeText($(".pop_more a.category").first().text());
+
+  const createdAtText = normalizeText($(".top_area .date").first().text());
+
+  const createdAtRegdate = html.match(
+    /window\.document_regdate\s*=\s*(\d+)/,
+  )?.[1];
+
+  const author = normalizeText($(".btm_area .member_plate").first().text());
+
+  // 조회/추천/댓글
+  const stats = $(".btm_area .side.fr span b")
+    .toArray()
+    .map((el) => normalizeText($(el).text()));
+  const viewCount = stats[0] ? pickNumber(stats[0]) : undefined;
+  const upvoteCount = stats[1] ? pickNumber(stats[1]) : undefined;
+  const commentCount = stats[2] ? pickNumber(stats[2]) : undefined;
+
+  // hotdeal_table 라벨 기반 추출
+  const table = $("table.hotdeal_table").first();
+
+  // FM코리아 핫딜 쇼핑몰 링크 원본 url 로 변환
+  function unwrapFmkoreaRedirectUrl(input?: string): string | undefined {
+    if (!input) return undefined;
+
+    const raw = input.trim();
+    try {
+      const u = new URL(raw);
+
+      // FMKorea redirect wrapper
+      if (u.hostname === "link.fmkorea.org" && u.pathname === "/link.php") {
+        const wrapped = u.searchParams.get("url");
+        if (wrapped) return decodeURIComponent(wrapped);
+      }
+
+      return raw;
+    } catch {
+      // URL 파싱이 실패하면 원본 그대로
+      return raw;
     }
-
-    const shippingText =
-      $(".shipping, .delivery, .price, .deal_price").first().text() || bodyText;
-    const shippingType = detectShippingType(shippingText);
-    const soldOut = detectSoldOut(bodyText, $);
-
-    const outboundLinks = extractOutboundLinks($);
-
-    const parsed = parseDetailSchema.safeParse({
-      price,
-      shippingType,
-      soldOut,
-      outboundLinks,
-    });
-    if (!parsed.success) {
-      return {
-        ok: false,
-        error: {
-          message: "parseDetail validation failed",
-          issues: parsed.error.issues.map((e) => e.message),
-        },
-      };
-    }
-    return { ok: true, data: parsed.data };
-  } catch (error) {
-    return {
-      ok: false,
-      error: {
-        message:
-          error instanceof Error ? error.message : "parseDetail unexpected error",
-      },
-    };
   }
+
+  function getTdByThLabel(label: string) {
+    const tr = table
+      .find("tr")
+      .filter((_, el) => normalizeText($(el).find("th").text()).includes(label))
+      .first();
+    return tr.length ? tr.find("td").first() : null;
+  }
+
+  const dealUrlEl = getTdByThLabel("링크")?.find("a.hotdeal_url").first();
+  const dealUrlRaw = dealUrlEl?.attr("href")?.trim() || undefined;
+  const dealUrl = unwrapFmkoreaRedirectUrl(dealUrlRaw);
+
+  const mall = getTdByThLabel("쇼핑몰")?.text()
+    ? normalizeText(getTdByThLabel("쇼핑몰")!.text())
+    : undefined;
+
+  const productName = getTdByThLabel("상품명")?.text()
+    ? normalizeText(getTdByThLabel("상품명")!.text())
+    : undefined;
+
+  const price = getTdByThLabel("가격")?.text()
+    ? normalizeText(getTdByThLabel("가격")!.text())
+    : undefined;
+
+  const shipping = getTdByThLabel("배송")?.text()
+    ? normalizeText(getTdByThLabel("배송")!.text())
+    : undefined;
+
+  // 요약/이미지
+  const ogImage = $('meta[property="og:image"]').attr("content")?.trim();
+
+  const contentImages = $(".rd_body article .xe_content img")
+    .toArray()
+    .map((img) => {
+      const src = $(img).attr("src")?.trim();
+      if (!src) return null;
+      // //image... 형태면 https 붙이기
+      return src.startsWith("//") ? `https:${src}` : src;
+    })
+    .filter((v): v is string => !!v);
+
+  const summaryText = normalizeText(
+    $(".rd_body article .xe_content p").first().text(),
+  );
+
+  // 유사 핫딜
+  const relevantDeals = $("ul.relevant_hotdeals li.list")
+    .toArray()
+    .map((li) => {
+      const a = $(li).find("a").first();
+      const url = a.attr("href")?.trim() ?? "";
+      const title = normalizeText(a.text());
+      const price = normalizeText($(li).find(".price span").text());
+      const regdate = normalizeText($(li).find(".regdate span").text());
+
+      return {
+        url: url.startsWith("http") ? url : `https://www.fmkorea.com${url}`,
+        title,
+        price: price || undefined,
+        regdate: regdate || undefined,
+      };
+    });
+
+  const url =
+    canonical || (documentSrl ? `https://www.fmkorea.com/${documentSrl}` : "");
+
+  return {
+    site: "fmkorea",
+    board: "hotdeal",
+    documentSrl,
+    url,
+    canonicalUrl: canonical,
+    title: title || undefined,
+    category: category || undefined,
+    mall,
+    productName,
+    price,
+    shipping,
+    dealUrl,
+    author: author || undefined,
+    createdAtText: createdAtText || undefined,
+    createdAtRegdate,
+    viewCount,
+    upvoteCount,
+    commentCount,
+    summaryText: summaryText || undefined,
+    ogImage,
+    contentImages: contentImages.length ? contentImages : undefined,
+    relevantDeals: relevantDeals.length ? relevantDeals : undefined,
+  };
 }

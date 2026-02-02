@@ -8,6 +8,8 @@
     "crawl": "tsx src/jobs/crawl.ts",
     "affiliate": "tsx src/jobs/affiliate.ts",
     "refresh": "tsx src/jobs/refreshMetrics.ts",
+    "refresh:subcategory": "tsx src/jobs/refreshSubcategory.ts",
+    "debug:detail": "tsx scripts/checkDetail.ts",
     "typecheck": "tsc --noEmit",
     "test:parsers": "tsx tests/parsers/fmkorea.smoke.ts"
   },

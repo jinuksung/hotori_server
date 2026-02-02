@@ -12,9 +12,9 @@ export type DealSourceInput = {
 
 export async function upsertSource(
   input: DealSourceInput,
-  client?: DbClient
+  client?: DbClient,
 ): Promise<{ id: number; dealId: number }> {
-  const result = await query<{ id: number; dealid: number }>(
+  const result = await query<{ id: number; dealId: number }>(
     `insert into public.deal_sources
       (deal_id, source, source_post_id, post_url, source_category_id, title, thumb_url)
      values
@@ -25,7 +25,7 @@ export async function upsertSource(
            source_category_id = excluded.source_category_id,
            title = excluded.title,
            thumb_url = excluded.thumb_url
-     returning id, deal_id`,
+     returning id, deal_id as "dealId"`,
     [
       input.dealId,
       input.source,
@@ -35,23 +35,24 @@ export async function upsertSource(
       input.title,
       input.thumbUrl,
     ],
-    client
+    client,
   );
+
   const row = result.rows[0];
-  return { id: row.id, dealId: row.dealid };
+  return { id: row.id, dealId: row.dealId };
 }
 
 export async function findBySourcePost(
   source: string,
   sourcePostId: string,
-  client?: DbClient
+  client?: DbClient,
 ): Promise<{ id: number; dealId: number; postUrl: string } | null> {
   const result = await query<{ id: number; dealid: number; post_url: string }>(
     `select id, deal_id, post_url
      from public.deal_sources
      where source = $1 and source_post_id = $2`,
     [source, sourcePostId],
-    client
+    client,
   );
   const row = result.rows[0];
   if (!row) return null;
@@ -61,7 +62,7 @@ export async function findBySourcePost(
 export async function listRecentPosts(
   source: string,
   limit: number,
-  client?: DbClient
+  client?: DbClient,
 ): Promise<Array<{ dealId: number; postUrl: string; sourcePostId: string }>> {
   const result = await query<{
     dealid: number;
@@ -74,7 +75,7 @@ export async function listRecentPosts(
      order by created_at desc
      limit $2`,
     [source, limit],
-    client
+    client,
   );
   return result.rows.map((row) => ({
     dealId: row.dealid,

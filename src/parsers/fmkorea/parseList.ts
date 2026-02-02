@@ -50,15 +50,29 @@ function extractPostIdFromHref(href: string): string | null {
 }
 
 function parseCategoryInfo($item: cheerio.Cheerio<AnyNode>) {
-  const categoryLink = $item.find(".category a[href*=\"category=\"]").first();
+  const primary = $item
+    .find('.category a[data-category_srl], .category a[href*="category="]')
+    .first();
+  const fallback =
+    primary.length > 0
+      ? primary
+      : $item
+          .find('a[data-category_srl], a[href*="category="]')
+          .first();
+  const categoryLink = fallback;
+  // console.log("categoryLink", categoryLink);
   const href = categoryLink.attr("href");
-  let sourceCategoryKey: string | null = null;
-  if (href) {
+  const dataCategory = categoryLink.attr("data-category_srl");
+  let sourceCategoryKey: string | null = dataCategory?.trim() || null;
+  if (!sourceCategoryKey && href) {
     const absolute = toAbsoluteUrl(href);
     if (absolute) {
       try {
         const parsed = new URL(absolute);
-        sourceCategoryKey = parsed.searchParams.get("category");
+        sourceCategoryKey =
+          parsed.searchParams.get("category") ??
+          parsed.searchParams.get("category_srl");
+        console.log("sourceCategoryKey", sourceCategoryKey);
       } catch {
         sourceCategoryKey = null;
       }
@@ -88,7 +102,7 @@ function parseHotdealInfo($item: cheerio.Cheerio<AnyNode>) {
   };
 }
 
-export function parseList(html: string): Result<FmkoreaListResult> {
+export function parseFmHotdealList(html: string): Result<FmkoreaListResult> {
   try {
     const $ = cheerio.load(html);
     const items: FmkoreaListItem[] = [];
@@ -96,7 +110,7 @@ export function parseList(html: string): Result<FmkoreaListResult> {
     const listItems = $("div.fm_best_widget._bd_pc > ul > li").toArray();
     for (const li of listItems) {
       const $item = $(li);
-      const link = $item.find("h3.title a[href^=\"/\"]").first();
+      const link = $item.find('h3.title a[href^="/"]').first();
       const href = link.attr("href");
       if (!href) continue;
 
@@ -114,7 +128,8 @@ export function parseList(html: string): Result<FmkoreaListResult> {
       const thumbRaw = $item.find("img.thumb").attr("data-original") || null;
       const thumbUrl = thumbRaw ? toAbsoluteUrl(thumbRaw) : null;
 
-      const { sourceCategoryKey, sourceCategoryName } = parseCategoryInfo($item);
+      const { sourceCategoryKey, sourceCategoryName } =
+        parseCategoryInfo($item);
       const { shopText, priceText, shippingText } = parseHotdealInfo($item);
       const commentCount = parseCommentCount($item);
 
