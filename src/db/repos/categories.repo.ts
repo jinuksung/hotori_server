@@ -30,3 +30,10 @@ export async function getByName(
   );
   return result.rows[0] ?? null;
 }
+
+export async function findByName(
+  name: string,
+  client?: DbClient,
+): Promise<CategoryRow | null> {
+  return getByName(name, client);
+}

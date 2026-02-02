@@ -22,9 +22,9 @@ import { createDeal, updateDeal } from "../db/repos/deals.repo";
 import { upsertSource, findBySourcePost } from "../db/repos/dealSources.repo";
 import { insertLink } from "../db/repos/links.repo";
 import { insertSnapshot } from "../db/repos/metrics.repo";
-import { getOrCreateByName } from "../db/repos/categories.repo";
+import { findByName, getOrCreateByName } from "../db/repos/categories.repo";
 import { upsertSourceCategory } from "../db/repos/sourceCategories.repo";
-import { findMappedCategoryId } from "../db/repos/categoryMappings.repo";
+import { findMappedCategoryIdBySourceCategoryId } from "../db/repos/categoryMappings.repo";
 
 import { extractDomain, normalizeUrl } from "../utils/url";
 import {
@@ -35,6 +35,7 @@ import {
   stripShopPrefix,
 } from "./pipelineHelpers";
 import { inferSubcategory } from "../parsers/common/inferSubcategory";
+import { inferCategory } from "../parsers/common/inferCategory";
 
 console.log("[BOOT] crawl.ts loaded", new Date().toISOString());
 
@@ -192,6 +193,7 @@ async function main() {
   );
 
   const categoryId = await ensureDefaultCategory();
+  const categoryNameCache = new Map<string, number>();
   const itemsBySourcePostId = new Map(
     parsedList.data.items.map((item) => [item.sourcePostId, item]),
   );
@@ -366,7 +368,7 @@ async function main() {
     }
 
     try {
-      await persistDeal(listItem, parsedDetail, categoryId);
+      await persistDeal(listItem, parsedDetail, categoryId, categoryNameCache);
       stats.processed += 1;
       console.log("[OK] persisted", detail.sourcePostId, parsedDetail.title);
     } catch (error) {
@@ -388,6 +390,7 @@ async function persistDeal(
   listItem: FmkoreaListItem,
   detail: FmHotdealDetail,
   defaultCategoryId: number,
+  categoryNameCache: Map<string, number>,
 ): Promise<void> {
   const normalizedPrice = parsePrice(
     detail.price ?? listItem.priceText ?? null,
@@ -409,8 +412,11 @@ async function persistDeal(
     : null;
 
   await withTx(async (client) => {
-    let resolvedCategoryId = defaultCategoryId;
     let sourceCategoryId: number | null = null;
+    let mappedCategoryId: number | null = null;
+    let inferredCategoryName: string | null = null;
+    let inferredCategoryId: number | null = null;
+    let resolvedCategoryId: number | null = null;
 
     if (listItem.sourceCategoryKey && listItem.sourceCategoryName) {
       const sourceCategory = await upsertSourceCategory(
@@ -422,10 +428,47 @@ async function persistDeal(
         client
       );
       sourceCategoryId = sourceCategory.id;
-      const mapped = await findMappedCategoryId(sourceCategoryId, client);
-      if (mapped) {
-        resolvedCategoryId = mapped;
+      mappedCategoryId = await findMappedCategoryIdBySourceCategoryId(
+        sourceCategoryId,
+        client,
+      );
+      if (mappedCategoryId) {
+        resolvedCategoryId = mappedCategoryId;
       }
+    } else {
+      logger.info(
+        {
+          job: "crawl",
+          stage: "category",
+          sourcePostId: listItem.sourcePostId,
+          sourceCategoryKey: listItem.sourceCategoryKey,
+          sourceCategoryName: listItem.sourceCategoryName,
+        },
+        "source category missing from list item",
+      );
+    }
+
+    if (!resolvedCategoryId) {
+      const inferred = inferCategory({
+        title: dealTitle,
+        bodyText: detail.summaryText ?? null,
+        linkDomains: purchaseDomain ? [purchaseDomain] : null,
+      });
+      if (inferred) {
+        inferredCategoryName = inferred.categoryName;
+        inferredCategoryId = await resolveCategoryIdByName(
+          inferred.categoryName,
+          categoryNameCache,
+          client,
+        );
+        if (inferredCategoryId) {
+          resolvedCategoryId = inferredCategoryId;
+        }
+      }
+    }
+
+    if (!resolvedCategoryId) {
+      resolvedCategoryId = defaultCategoryId;
     }
 
     const subcategory = inferSubcategory(
@@ -487,6 +530,20 @@ async function persistDeal(
       client,
     );
 
+    logger.info(
+      {
+        job: "crawl",
+        stage: "category",
+        sourcePostId: listItem.sourcePostId,
+        sourceCategoryId,
+        mappedCategoryId,
+        inferredCategoryName,
+        inferredCategoryId,
+        finalCategoryId: resolvedCategoryId,
+      },
+      "resolved category for deal",
+    );
+
     await appendRaw(
       {
         source: SOURCE,
@@ -538,6 +595,21 @@ async function persistDeal(
       }
     }
   });
+}
+
+async function resolveCategoryIdByName(
+  name: string,
+  cache: Map<string, number>,
+  client: Parameters<typeof findByName>[1],
+): Promise<number | null> {
+  const normalized = name.trim();
+  if (!normalized) return null;
+  const cached = cache.get(normalized);
+  if (cached) return cached;
+  const row = await findByName(normalized, client);
+  if (!row) return null;
+  cache.set(normalized, row.id);
+  return row.id;
 }
 
 main().catch((error) => {
