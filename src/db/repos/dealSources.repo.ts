@@ -47,8 +47,8 @@ export async function findBySourcePost(
   sourcePostId: string,
   client?: DbClient,
 ): Promise<{ id: number; dealId: number; postUrl: string } | null> {
-  const result = await query<{ id: number; dealid: number; post_url: string }>(
-    `select id, deal_id, post_url
+  const result = await query<{ id: number; dealId: number; postUrl: string }>(
+    `select id, deal_id as "dealId", post_url as "postUrl"
      from public.deal_sources
      where source = $1 and source_post_id = $2`,
     [source, sourcePostId],
@@ -56,7 +56,7 @@ export async function findBySourcePost(
   );
   const row = result.rows[0];
   if (!row) return null;
-  return { id: row.id, dealId: row.dealid, postUrl: row.post_url };
+  return { id: row.id, dealId: row.dealId, postUrl: row.postUrl };
 }
 
 export async function listRecentPosts(
@@ -65,11 +65,13 @@ export async function listRecentPosts(
   client?: DbClient,
 ): Promise<Array<{ dealId: number; postUrl: string; sourcePostId: string }>> {
   const result = await query<{
-    dealid: number;
-    post_url: string;
-    source_post_id: string;
+    dealId: number;
+    postUrl: string;
+    sourcePostId: string;
   }>(
-    `select deal_id, post_url, source_post_id
+    `select deal_id as "dealId",
+            post_url as "postUrl",
+            source_post_id as "sourcePostId"
      from public.deal_sources
      where source = $1
      order by created_at desc
@@ -78,8 +80,8 @@ export async function listRecentPosts(
     client,
   );
   return result.rows.map((row) => ({
-    dealId: row.dealid,
-    postUrl: row.post_url,
-    sourcePostId: row.source_post_id,
+    dealId: row.dealId,
+    postUrl: row.postUrl,
+    sourcePostId: row.sourcePostId,
   }));
 }
