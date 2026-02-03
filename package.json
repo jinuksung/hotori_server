@@ -6,6 +6,8 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "crawl": "tsx src/jobs/crawl.ts",
+    "crawl:all": "tsx src/jobs/crawl.ts",
+    "crawl:fmkorea": "tsx src/jobs/crawl-fmkorea.ts",
     "affiliate": "tsx src/jobs/affiliate.ts",
     "refresh": "tsx src/jobs/refreshMetrics.ts",
     "refresh:subcategory": "tsx src/jobs/refreshSubcategory.ts",
