@@ -1,3 +1,4 @@
+// 역할: FM코리아 상세 페이지 HTML을 수집하는 크롤러.
 // src/crawlers/fmkorea/detail.ts
 import "dotenv/config";
 import Bottleneck from "bottleneck";
@@ -10,10 +11,12 @@ import crypto from "node:crypto";
 
 const DEBUG_DIR = path.resolve(process.cwd(), ".debug", "fmkorea_detail");
 
+// 역할: 파일 시스템에 안전한 이름으로 정규화한다.
 function safeName(input: string) {
   return input.replace(/[^a-zA-Z0-9._-]+/g, "_").slice(0, 120);
 }
 
+// 역할: 크롤링 디버그 아티팩트를 파일로 저장한다.
 async function dumpDebugArtifacts(params: {
   tag: string;
   url: string;
@@ -91,6 +94,7 @@ const MIN_TIME_MS = Number(process.env.FMKOREA_DETAIL_MIN_TIME_MS ?? "2500");
 // FMKorea 본문 후보 (필요하면 더 좁히기)
 const DEFAULT_CONTENT_SELECTOR = "article, .xe_content, .rd_body, #bd_capture";
 
+// 역할: 상세 페이지들을 동시성 제한과 재시도로 수집한다.
 export async function fetchFmkoreaDetailHtmls(
   targets: DetailTarget[],
   options: DetailCrawlerOptions = {},
@@ -209,6 +213,7 @@ export async function fetchFmkoreaDetailHtmls(
   }
 }
 
+// 역할: 단일 상세 페이지의 HTML을 로드하고 필요 시 디버그 덤프를 남긴다.
 async function loadDetailHtml(
   context: BrowserContext,
   url: string,
@@ -276,6 +281,7 @@ async function loadDetailHtml(
   }
 }
 
+// 역할: 작업을 재시도해 Result 형태로 반환한다.
 async function runWithRetries<T>(
   maxAttempts: number,
   task: () => Promise<T>,
@@ -296,12 +302,14 @@ async function runWithRetries<T>(
   return { ok: false, error: { message: formatError(lastError) } };
 }
 
+// 역할: 에러를 문자열로 정규화한다.
 function formatError(error: unknown): string {
   if (error instanceof Error) return error.message;
   if (typeof error === "string") return error;
   return "Unknown crawler error";
 }
 
+// 역할: 상세 URL 후보군(PC/모바일/쿼리)을 구성한다.
 function buildDetailUrlVariants(
   postUrl: string,
   baseUrl: string,
@@ -343,6 +351,7 @@ function buildDetailUrlVariants(
   return deduped;
 }
 
+// 역할: 상세 URL에서 문서 ID(document_srl)를 추출한다.
 function extractDocumentId(url: string): string | null {
   const match = url.match(/\/(\d+)(?:$|\?)/);
   if (match) return match[1];
@@ -357,6 +366,7 @@ function extractDocumentId(url: string): string | null {
   return null;
 }
 
+// 역할: 문서 ID로 상세 URL을 만든다.
 function makeDocumentUrl(docId: string, baseUrl: string): string {
   try {
     return new URL(`/${docId}`, baseUrl).toString();
@@ -365,6 +375,7 @@ function makeDocumentUrl(docId: string, baseUrl: string): string {
   }
 }
 
+// 역할: index.php 기반 상세 URL을 만든다.
 function makeIndexUrl(docId: string, baseUrl: string): string {
   try {
     const url = new URL("/index.php", baseUrl);

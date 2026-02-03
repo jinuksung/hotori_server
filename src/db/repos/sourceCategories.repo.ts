@@ -1,3 +1,5 @@
+// 역할: source_categories 테이블 업서트/조회 레포지토리.
+
 import { query, type DbClient } from "../client";
 
 export type SourceCategoryInput = {
@@ -6,6 +8,7 @@ export type SourceCategoryInput = {
   name: string;
 };
 
+// 역할: source+source_key 기준으로 원본 카테고리를 업서트한다.
 export async function upsertSourceCategory(
   input: SourceCategoryInput,
   client?: DbClient
@@ -22,6 +25,7 @@ export async function upsertSourceCategory(
   return result.rows[0];
 }
 
+// 역할: source+source_key로 원본 카테고리 id를 조회한다.
 export async function findSourceCategoryId(
   source: string,
   sourceKey: string,

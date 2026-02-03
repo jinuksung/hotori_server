@@ -1,3 +1,4 @@
+// 역할: 모든 소스 크롤링을 묶어 실행하는 엔트리.
 // src/jobs/crawl.ts
 import "dotenv/config";
 import pino from "pino";
@@ -9,6 +10,7 @@ console.log("[BOOT] crawl.ts loaded", new Date().toISOString());
 const LOG_LEVEL = process.env.LOG_LEVEL ?? "info";
 const logger = pino({ level: LOG_LEVEL });
 
+// 역할: 모든 소스 크롤러를 순차 실행한다.
 async function main() {
   logger.info({ job: "crawl:all" }, "crawl all job started");
   console.log("[INFO] crawl all job started");

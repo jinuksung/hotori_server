@@ -1,3 +1,5 @@
+// 역할: 파이프라인 전반에서 사용하는 공통 타입 정의.
+
 export type Result<T> =
   | { ok: true; data: T }
   | { ok: false; error: { message: string; issues?: string[] } };

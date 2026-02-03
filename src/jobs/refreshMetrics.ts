@@ -1,3 +1,5 @@
+// 역할: 최근 딜의 메트릭을 갱신하고 히스토리로 누적하는 배치 작업.
+
 import pino from "pino";
 import { fetchFmkoreaDetailHtmls } from "../crawlers/fmkorea/detail";
 import { parseFmHotdealDetail, type FmHotdealDetail } from "../parsers/fmkorea/parseDetail";
@@ -26,6 +28,7 @@ type RefreshStats = {
   persistFailures: number;
 };
 
+// 역할: 최근 게시글을 크롤링해 메트릭/딜 정보를 갱신한다.
 async function main() {
   logger.info(
     { job: "refresh", batchSize: REFRESH_BATCH_SIZE },
@@ -105,6 +108,7 @@ async function main() {
   logger.info({ job: "refresh", ...stats }, "refreshMetrics job finished");
 }
 
+// 역할: 갱신된 메트릭과 딜 정보를 트랜잭션으로 저장한다.
 async function persistMetrics(
   post: { dealId: number; sourcePostId: string },
   detail: FmHotdealDetail

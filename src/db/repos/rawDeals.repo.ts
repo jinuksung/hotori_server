@@ -1,3 +1,5 @@
+// 역할: raw_deals 테이블에 원본 수집 데이터를 누적 저장한다.
+
 import { query, type DbClient } from "../client";
 
 export type RawDealInput = {
@@ -7,6 +9,7 @@ export type RawDealInput = {
   crawledAt?: string;
 };
 
+// 역할: raw_deals에 append-only로 raw payload를 기록한다.
 export async function appendRaw(
   input: RawDealInput,
   client?: DbClient

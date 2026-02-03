@@ -1,3 +1,5 @@
+// 역할: deal_links 테이블의 링크 저장/조회 레포지토리.
+
 import { query, type DbClient } from "../client";
 
 export type DealLinkInput = {
@@ -7,6 +9,7 @@ export type DealLinkInput = {
   isAffiliate: boolean;
 };
 
+// 역할: 구매 링크를 추가한다(중복은 무시).
 export async function insertLink(
   input: DealLinkInput,
   client?: DbClient
@@ -20,6 +23,7 @@ export async function insertLink(
   );
 }
 
+// 역할: 제휴 링크가 없는 원본 링크 목록을 조회한다.
 export async function listNonAffiliateLinksMissingAffiliatePair(
   limit: number,
   client?: DbClient
@@ -42,6 +46,7 @@ export async function listNonAffiliateLinksMissingAffiliatePair(
   return result.rows.map((row) => ({ dealId: row.dealid, url: row.url }));
 }
 
+// 역할: 특정 딜에 제휴 링크가 존재하는지 확인한다.
 export async function hasAffiliateLink(
   dealId: number,
   client?: DbClient

@@ -1,3 +1,5 @@
+// 역할: deals 테이블의 생성/갱신/조회 레포지토리.
+
 import { query, type DbClient } from "../client";
 
 export type DealInput = {
@@ -11,6 +13,7 @@ export type DealInput = {
   thumbnailUrl: string | null;
 };
 
+// 역할: 정규화된 딜을 생성한다.
 export async function createDeal(
   input: DealInput,
   client?: DbClient
@@ -38,6 +41,7 @@ export async function createDeal(
 
 export type DealPatch = Partial<DealInput>;
 
+// 역할: 딜의 변경 가능한 필드를 부분 업데이트한다.
 export async function updateDeal(
   id: number,
   patch: DealPatch,
@@ -96,6 +100,7 @@ export async function updateDeal(
   );
 }
 
+// 역할: 특정 딜의 updated_at을 현재 시각으로 갱신한다.
 export async function touchUpdatedAt(id: number, client?: DbClient): Promise<void> {
   await query(
     `update public.deals
@@ -115,6 +120,7 @@ export type DealSubcategoryRow = {
   linkDomains: string[] | null;
 };
 
+// 역할: 서브카테고리 재계산을 위한 딜 목록을 순차 조회한다.
 export async function listDealsForSubcategory(
   lastId: number,
   limit: number,

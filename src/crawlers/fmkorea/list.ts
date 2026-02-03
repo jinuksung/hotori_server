@@ -1,3 +1,5 @@
+// 역할: FM코리아 핫딜 리스트 페이지 HTML을 수집하는 크롤러.
+
 import "dotenv/config";
 import { chromium, type BrowserContext } from "playwright";
 import type { Result } from "../../types";
@@ -20,6 +22,7 @@ const DEFAULT_VIEWPORT = { width: 1280, height: 800 };
 const DEFAULT_TIMEOUT_MS = 45_000;
 const DEFAULT_MAX_RETRIES = 3;
 
+// 역할: 핫딜 리스트 페이지의 HTML을 가져온다(재시도 포함).
 export async function fetchFmkoreaHotdealListHtml(
   options: FetchListOptions = {},
 ): Promise<Result<string>> {
@@ -42,6 +45,7 @@ export async function fetchFmkoreaHotdealListHtml(
   });
 }
 
+// 역할: Playwright 브라우저 컨텍스트를 생성한다.
 async function createContext(headless?: boolean): Promise<BrowserContext> {
   const browser = await chromium.launch({ headless: headless ?? true });
   return browser.newContext({
@@ -51,6 +55,7 @@ async function createContext(headless?: boolean): Promise<BrowserContext> {
   });
 }
 
+// 역할: 컨텍스트와 브라우저를 안전하게 종료한다.
 async function closeContext(context: BrowserContext) {
   const browser = context.browser();
   await context.close();
@@ -59,6 +64,7 @@ async function closeContext(context: BrowserContext) {
   }
 }
 
+// 역할: 베이스 URL 기준으로 리스트 페이지 URL을 구성한다.
 function buildListUrl(baseUrl?: string) {
   const root = (
     baseUrl ??
@@ -72,6 +78,7 @@ function buildListUrl(baseUrl?: string) {
   }
 }
 
+// 역할: 최대 시도 횟수 내에서 작업을 재시도한다.
 async function runWithRetries<T>(
   maxAttempts: number,
   task: () => Promise<T>,
@@ -91,6 +98,7 @@ async function runWithRetries<T>(
   return { ok: false, error: { message: formatError(lastError) } };
 }
 
+// 역할: 에러를 사용자 친화적인 문자열로 정리한다.
 function formatError(error: unknown): string {
   if (error instanceof Error) return error.message;
   if (typeof error === "string") return error;

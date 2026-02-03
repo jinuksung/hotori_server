@@ -1,3 +1,5 @@
+// 역할: 원본 구매 링크를 제휴 링크로 변환하는 배치 작업.
+
 import pino from "pino";
 import {
   insertLink,
@@ -18,6 +20,7 @@ type AffiliateStats = {
   failed: number;
 };
 
+// 역할: 제휴 링크 변환 배치를 실행한다.
 async function main() {
   if (!AFFILIATE_BASE) {
     logger.error(
@@ -87,6 +90,7 @@ async function main() {
   logger.info({ job: "affiliate", ...stats }, "affiliate job finished");
 }
 
+// 역할: 원본 URL을 제휴 리다이렉트 URL로 감싼다.
 function buildAffiliateUrl(originalUrl: string): string | null {
   if (!AFFILIATE_BASE) return null;
   try {

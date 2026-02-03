@@ -1,3 +1,5 @@
+// 역할: deal_metrics_history 히스토리 적재 레포지토리.
+
 import { query, type DbClient } from "../client";
 
 export type MetricsSnapshotInput = {
@@ -9,6 +11,7 @@ export type MetricsSnapshotInput = {
   capturedAt?: string;
 };
 
+// 역할: 메트릭 스냅샷을 시계열로 insert-only 저장한다.
 export async function insertSnapshot(
   input: MetricsSnapshotInput,
   client?: DbClient

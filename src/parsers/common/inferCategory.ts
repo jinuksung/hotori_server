@@ -1,3 +1,5 @@
+// 역할: 텍스트/도메인 힌트로 상위 카테고리를 추정하는 규칙 기반 유틸.
+
 import { z } from "zod";
 
 const InputSchema = z.object({
@@ -132,6 +134,7 @@ const RULES: CategoryRule[] = [
   },
 ];
 
+// 역할: 입력 텍스트를 규칙에 매칭해 가장 높은 점수의 카테고리를 반환한다.
 export function inferCategory(
   input: InferCategoryInput,
 ): InferCategoryResult | null {
@@ -156,6 +159,7 @@ export function inferCategory(
   return best;
 }
 
+// 역할: 규칙의 점수를 계산한다(키워드/도메인 힌트 기반).
 function scoreRule(
   rule: CategoryRule,
   text: string,
@@ -170,18 +174,22 @@ function scoreRule(
   return score;
 }
 
+// 역할: 텍스트 비교를 위해 소문자/공백을 정규화한다.
 function normalizeText(input: string): string {
   return ` ${input.toLowerCase().replace(/\s+/g, " ").trim()} `;
 }
 
+// 역할: 도메인 비교를 위해 소문자로 정규화한다.
 function normalizeDomain(input: string): string {
   return input.toLowerCase().trim();
 }
 
+// 역할: 텍스트가 키워드 중 하나라도 포함하는지 확인한다.
 function matchesAny(text: string, keywords: string[]): boolean {
   return keywords.some((keyword) => text.includes(normalizeToken(keyword)));
 }
 
+// 역할: 텍스트에서 키워드 매칭 횟수를 센다.
 function countMatches(text: string, keywords: string[]): number {
   let count = 0;
   for (const keyword of keywords) {
@@ -190,10 +198,12 @@ function countMatches(text: string, keywords: string[]): number {
   return count;
 }
 
+// 역할: 키워드 토큰을 비교용으로 정규화한다.
 function normalizeToken(input: string): string {
   return input.toLowerCase().trim();
 }
 
+// 역할: 도메인 힌트 매칭 횟수를 센다.
 function countDomainMatches(domains: string[], hints: string[]): number {
   if (!domains.length || !hints.length) return 0;
 

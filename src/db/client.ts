@@ -1,3 +1,5 @@
+// 역할: PostgreSQL 연결 풀과 트랜잭션 유틸리티 제공.
+
 import "dotenv/config";
 import {
   Pool,
@@ -27,6 +29,7 @@ export const pool = new Pool({
 
 export type DbClient = PoolClient;
 
+// 역할: 지정된 클라이언트/풀로 SQL을 실행한다.
 export async function query<T extends QueryResultRow = QueryResultRow>(
   text: string,
   params: unknown[] = [],
@@ -36,6 +39,7 @@ export async function query<T extends QueryResultRow = QueryResultRow>(
   return executor.query<T>(text, params);
 }
 
+// 역할: 풀에서 클라이언트를 빌려 콜백을 실행하고 반환한다.
 export async function withClient<T>(
   fn: (client: DbClient) => Promise<T>,
 ): Promise<T> {
@@ -47,6 +51,7 @@ export async function withClient<T>(
   }
 }
 
+// 역할: 트랜잭션을 열고 커밋/롤백을 보장한다.
 export async function withTx<T>(
   fn: (client: DbClient) => Promise<T>,
 ): Promise<T> {

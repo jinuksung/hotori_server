@@ -1,3 +1,4 @@
+// 역할: FM코리아 크롤링 파이프라인의 실질 로직을 제공한다.
 // src/jobs/sources/fmkorea.ts
 import "dotenv/config";
 import fs from "node:fs/promises";
@@ -83,6 +84,7 @@ type CategoryMappingMissSample = {
   examplePostUrl: string;
 };
 
+// 역할: 빈 실행 결과용 통계 객체를 생성한다.
 function createEmptyStats(listItems: number): CrawlStats {
   return {
     listItems,
@@ -100,10 +102,12 @@ function createEmptyStats(listItems: number): CrawlStats {
   };
 }
 
+// 역할: 실패 덤프 디렉토리를 보장한다.
 async function ensureDumpDir() {
   await fs.mkdir(DUMP_DIR, { recursive: true });
 }
 
+// 역할: PC URL을 모바일 URL로 변환한다.
 function toMobileUrl(url: string): string {
   try {
     const u = new URL(url);
@@ -114,10 +118,12 @@ function toMobileUrl(url: string): string {
   }
 }
 
+// 역할: 파일명으로 사용할 수 있도록 문자열을 정제한다.
 function safeFilename(s: string) {
   return s.replace(/[^\w.-]+/g, "_").slice(0, 180);
 }
 
+// 역할: 실패 케이스의 메타/HTML을 덤프한다.
 async function dumpFailure(args: {
   sourcePostId: string;
   postUrl: string;
@@ -156,6 +162,7 @@ async function dumpFailure(args: {
   console.log("[DUMP]", metaPath, args.html ? htmlPath : "");
 }
 
+// 역할: FM코리아 크롤링 전체 플로우를 실행하고 통계를 반환한다.
 export async function crawlFmkorea(): Promise<CrawlStats> {
   logger.info({ job: "crawl" }, "crawl job started");
   console.log("[INFO] crawl job started");
@@ -476,6 +483,7 @@ export async function crawlFmkorea(): Promise<CrawlStats> {
   return stats;
 }
 
+// 역할: 파싱 결과를 DB에 저장하고 관련 메트릭/링크를 적재한다.
 async function persistDeal(
   listItem: FmkoreaListItem,
   detail: FmHotdealDetail,
@@ -709,6 +717,7 @@ async function persistDeal(
   });
 }
 
+// 역할: DEFAULT_CATEGORY_ID 환경변수를 검증해 숫자로 반환한다.
 function requireDefaultCategoryId(): number {
   const raw = process.env.DEFAULT_CATEGORY_ID?.trim() ?? "";
   const value = Number(raw);

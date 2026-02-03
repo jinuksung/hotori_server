@@ -1,3 +1,5 @@
+// 역할: 딜 서브카테고리를 재계산해 최신 상태로 갱신하는 배치 작업.
+
 import pino from "pino";
 import { listDealsForSubcategory, updateDeal } from "../db/repos/deals.repo";
 import { withTx } from "../db/client";
@@ -12,6 +14,7 @@ type RefreshStats = {
   updated: number;
 };
 
+// 역할: 딜을 순차 스캔하며 서브카테고리를 재계산한다.
 async function main() {
   logger.info(
     { job: "refresh:subcategory", batchSize: BATCH_SIZE },

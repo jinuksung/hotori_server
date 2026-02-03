@@ -1,3 +1,5 @@
+// 역할: FM코리아 핫딜 리스트 HTML을 구조화 데이터로 파싱한다.
+
 import * as cheerio from "cheerio";
 import type { AnyNode } from "domhandler";
 
@@ -25,6 +27,7 @@ export type FmkoreaListResult = {
   items: FmkoreaListItem[];
 };
 
+// 역할: 상대 URL을 절대 URL로 변환한다.
 function toAbsoluteUrl(href: string): string | null {
   const trimmed = href.trim();
   if (!trimmed) return null;
@@ -35,6 +38,7 @@ function toAbsoluteUrl(href: string): string | null {
   }
 }
 
+// 역할: 게시글 링크에서 문서 ID를 추출한다.
 function extractPostIdFromHref(href: string): string | null {
   const numericPathMatch = href.match(/\/(\d{3,})/);
   if (numericPathMatch) return numericPathMatch[1];
@@ -49,6 +53,7 @@ function extractPostIdFromHref(href: string): string | null {
   }
 }
 
+// 역할: 리스트 아이템에서 원본 카테고리 키/명을 추출한다.
 function parseCategoryInfo($item: cheerio.Cheerio<AnyNode>) {
   const primary = $item
     .find('.category a[data-category_srl], .category a[href*="category="]')
@@ -81,6 +86,7 @@ function parseCategoryInfo($item: cheerio.Cheerio<AnyNode>) {
   return { sourceCategoryKey, sourceCategoryName };
 }
 
+// 역할: 리스트 아이템의 댓글 수를 파싱한다.
 function parseCommentCount($item: cheerio.Cheerio<AnyNode>): number | null {
   const text = $item.find("span.comment_count").first().text();
   const match = text.match(/\[(\d+)\]/);
@@ -89,6 +95,7 @@ function parseCommentCount($item: cheerio.Cheerio<AnyNode>): number | null {
   return Number.isFinite(value) ? value : null;
 }
 
+// 역할: 리스트 아이템의 상점/가격/배송 정보를 파싱한다.
 function parseHotdealInfo($item: cheerio.Cheerio<AnyNode>) {
   const info = $item.find(".hotdeal_info a.strong");
   const shopText = info.eq(0).text().trim() || null;
@@ -101,6 +108,7 @@ function parseHotdealInfo($item: cheerio.Cheerio<AnyNode>) {
   };
 }
 
+// 역할: 리스트 HTML 전체를 순회하며 핫딜 항목들을 추출한다.
 export function parseFmHotdealList(html: string): Result<FmkoreaListResult> {
   try {
     const $ = cheerio.load(html);

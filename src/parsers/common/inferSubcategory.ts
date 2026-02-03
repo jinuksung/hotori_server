@@ -1,3 +1,5 @@
+// 역할: 딜 제목/본문을 기반으로 서브카테고리를 추론한다.
+
 export type Subcategory =
   | "gpu"
   | "ssd"
@@ -15,6 +17,7 @@ export type Subcategory =
   | "figure"
   | "plastic_model";
 
+// 역할: 키워드 규칙으로 서브카테고리를 추정한다(보조 정보).
 export function inferSubcategory(
   categoryId: number,
   title: string,
@@ -148,10 +151,12 @@ const FRANCHISE_KEYWORDS = [
 const FIGURE_KEYWORDS = ["피규어", "figure", "넨도로이드"];
 const PLASTIC_MODEL_KEYWORDS = ["프라모델", "프라 모델", "건담", "gundam"];
 
+// 역할: 비교용으로 텍스트를 소문자/공백 정규화한다.
 function normalizeText(input: string): string {
   return ` ${input.toLowerCase().replace(/\s+/g, " ").trim()} `;
 }
 
+// 역할: 키워드 목록 중 하나라도 포함되는지 확인한다.
 function matchesAny(text: string, keywords: string[]): boolean {
   return keywords.some((keyword) => text.includes(keyword.toLowerCase()));
 }

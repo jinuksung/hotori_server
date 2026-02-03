@@ -1,7 +1,10 @@
+// 역할: categories 테이블 조회 전용 레포지토리.
+
 import { query, type DbClient } from "../client";
 
 export type CategoryRow = { id: number; name: string };
 
+// 역할: 카테고리명을 기준으로 단일 카테고리를 조회한다.
 export async function getByName(
   name: string,
   client?: DbClient
@@ -16,6 +19,7 @@ export async function getByName(
   return result.rows[0] ?? null;
 }
 
+// 역할: categories 테이블의 총 행 수를 조회한다.
 export async function countCategories(
   client?: DbClient
 ): Promise<number> {
@@ -30,6 +34,7 @@ export async function countCategories(
   return Number.isFinite(value) ? value : 0;
 }
 
+// 역할: getByName의 별칭(호환성 유지용).
 export async function findByName(
   name: string,
   client?: DbClient,

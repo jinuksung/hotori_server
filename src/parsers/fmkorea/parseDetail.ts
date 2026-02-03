@@ -1,3 +1,5 @@
+// 역할: FM코리아 상세 HTML을 구조화된 딜 데이터로 파싱한다.
+
 import * as cheerio from "cheerio";
 
 const BASE_URL = "https://www.fmkorea.com";
@@ -38,15 +40,18 @@ export type FmHotdealDetail = {
   }>;
 };
 
+// 역할: 공백을 정리해 텍스트를 정규화한다.
 function normalizeText(s: string) {
   return s.replace(/\s+/g, " ").trim();
 }
 
+// 역할: 문자열에서 숫자만 추출해 number로 변환한다.
 function pickNumber(s: string) {
   const n = Number(s.replace(/[^0-9]/g, ""));
   return Number.isFinite(n) ? n : undefined;
 }
 
+// 역할: 상세 페이지 HTML에서 핵심 필드들을 추출한다.
 export function parseFmHotdealDetail(html: string): FmHotdealDetail {
   const $ = cheerio.load(html);
 
@@ -88,7 +93,7 @@ export function parseFmHotdealDetail(html: string): FmHotdealDetail {
   // hotdeal_table 라벨 기반 추출
   const table = $("table.hotdeal_table").first();
 
-  // FM코리아 핫딜 쇼핑몰 링크 원본 url 로 변환
+  // 역할: FM코리아 리다이렉트 링크를 원본 링크로 복원한다.
   function unwrapFmkoreaRedirectUrl(input?: string): string | undefined {
     if (!input) return undefined;
 
@@ -109,6 +114,7 @@ export function parseFmHotdealDetail(html: string): FmHotdealDetail {
     }
   }
 
+  // 역할: hotdeal_table에서 라벨(th) 기준 td를 찾는다.
   function getTdByThLabel(label: string) {
     const tr = table
       .find("tr")
@@ -203,6 +209,7 @@ export function parseFmHotdealDetail(html: string): FmHotdealDetail {
   };
 }
 
+// 역할: 카테고리 링크에서 source_category_key를 추출한다.
 function extractCategoryKey(
   dataCategory?: string | null,
   href?: string | null,

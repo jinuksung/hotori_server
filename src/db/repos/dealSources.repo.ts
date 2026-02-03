@@ -1,3 +1,5 @@
+// 역할: deal_sources 테이블의 조회/업서트 레포지토리.
+
 import { query, type DbClient } from "../client";
 
 export type DealSourceInput = {
@@ -10,6 +12,7 @@ export type DealSourceInput = {
   thumbUrl: string | null;
 };
 
+// 역할: 원본 게시글 정보를 source+source_post_id 기준으로 업서트한다.
 export async function upsertSource(
   input: DealSourceInput,
   client?: DbClient,
@@ -42,6 +45,7 @@ export async function upsertSource(
   return { id: row.id, dealId: row.dealId };
 }
 
+// 역할: source+source_post_id로 deal_sources 단건을 조회한다.
 export async function findBySourcePost(
   source: string,
   sourcePostId: string,
@@ -59,6 +63,7 @@ export async function findBySourcePost(
   return { id: row.id, dealId: row.dealId, postUrl: row.postUrl };
 }
 
+// 역할: 최근 수집된 원본 게시글 목록을 최신순으로 조회한다.
 export async function listRecentPosts(
   source: string,
   limit: number,
