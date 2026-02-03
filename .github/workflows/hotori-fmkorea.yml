@@ -14,6 +14,10 @@ jobs:
   pipeline:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      # NOTE: secrets 컨텍스트는 일부 위치(if 등)에서 직접 참조가 제한될 수 있어,
+      # 먼저 env로 내려서 조건식은 env 기반으로 평가한다.
+      AFFILIATE_REDIRECT_BASE: ${{ secrets.AFFILIATE_REDIRECT_BASE }}
 
     steps:
       - name: Checkout
@@ -46,11 +50,10 @@ jobs:
           LOG_LEVEL: info
 
       - name: Affiliate
-        if: ${{ secrets.AFFILIATE_REDIRECT_BASE != '' }}
+        if: ${{ env.AFFILIATE_REDIRECT_BASE != '' }}
         run: npm run affiliate
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          AFFILIATE_REDIRECT_BASE: ${{ secrets.AFFILIATE_REDIRECT_BASE }}
           AFFILIATE_TRACKING_ID: ${{ secrets.AFFILIATE_TRACKING_ID }}
           AFFILIATE_BATCH_SIZE: "50"
           LOG_LEVEL: info
@@ -61,4 +64,3 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           REFRESH_BATCH_SIZE: "20"
           LOG_LEVEL: info
-
