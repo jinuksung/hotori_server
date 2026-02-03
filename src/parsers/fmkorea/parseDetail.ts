@@ -1,5 +1,7 @@
 import * as cheerio from "cheerio";
 
+const BASE_URL = "https://www.fmkorea.com";
+
 export type FmHotdealDetail = {
   site: "fmkorea";
   board: "hotdeal";
@@ -9,6 +11,8 @@ export type FmHotdealDetail = {
 
   title?: string;
   category?: string;
+  sourceCategoryKey?: string;
+  sourceCategoryName?: string;
   mall?: string;
   productName?: string;
   price?: string;
@@ -57,7 +61,13 @@ export function parseFmHotdealDetail(html: string): FmHotdealDetail {
 
   const title = normalizeText($(".rd_hd h1 .np_18px_span").first().text());
 
-  const category = normalizeText($(".pop_more a.category").first().text());
+  const categoryLink = $(".pop_more a.category").first();
+  const category = normalizeText(categoryLink.text());
+  const sourceCategoryKey = extractCategoryKey(
+    categoryLink.attr("data-category_srl"),
+    categoryLink.attr("href"),
+  );
+  const sourceCategoryName = category || undefined;
 
   const createdAtText = normalizeText($(".top_area .date").first().text());
 
@@ -173,6 +183,8 @@ export function parseFmHotdealDetail(html: string): FmHotdealDetail {
     canonicalUrl: canonical,
     title: title || undefined,
     category: category || undefined,
+    sourceCategoryKey: sourceCategoryKey || undefined,
+    sourceCategoryName,
     mall,
     productName,
     price,
@@ -189,4 +201,23 @@ export function parseFmHotdealDetail(html: string): FmHotdealDetail {
     contentImages: contentImages.length ? contentImages : undefined,
     relevantDeals: relevantDeals.length ? relevantDeals : undefined,
   };
+}
+
+function extractCategoryKey(
+  dataCategory?: string | null,
+  href?: string | null,
+): string | undefined {
+  const trimmed = dataCategory?.trim();
+  if (trimmed) return trimmed;
+  if (!href) return undefined;
+  try {
+    const parsed = new URL(href, BASE_URL);
+    return (
+      parsed.searchParams.get("category") ??
+      parsed.searchParams.get("category_srl") ??
+      undefined
+    );
+  } catch {
+    return undefined;
+  }
 }

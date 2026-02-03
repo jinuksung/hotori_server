@@ -32,7 +32,9 @@ async function main() {
     "refreshMetrics job started"
   );
 
-  const recentPosts = await listRecentPosts(SOURCE, REFRESH_BATCH_SIZE);
+  const recentPosts = await withTx((client) =>
+    listRecentPosts(SOURCE, REFRESH_BATCH_SIZE, client),
+  );
   if (recentPosts.length === 0) {
     logger.info({ job: "refresh" }, "no posts available for refresh");
     return;

@@ -22,7 +22,9 @@ async function main() {
   const stats: RefreshStats = { scanned: 0, updated: 0 };
 
   while (true) {
-    const rows = await listDealsForSubcategory(lastId, BATCH_SIZE);
+    const rows = await withTx((client) =>
+      listDealsForSubcategory(lastId, BATCH_SIZE, client),
+    );
     if (rows.length === 0) break;
 
     for (const row of rows) {

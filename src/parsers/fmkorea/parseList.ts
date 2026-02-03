@@ -72,7 +72,6 @@ function parseCategoryInfo($item: cheerio.Cheerio<AnyNode>) {
         sourceCategoryKey =
           parsed.searchParams.get("category") ??
           parsed.searchParams.get("category_srl");
-        console.log("sourceCategoryKey", sourceCategoryKey);
       } catch {
         sourceCategoryKey = null;
       }

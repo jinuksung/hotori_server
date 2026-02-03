@@ -4,6 +4,7 @@ import {
   listNonAffiliateLinksMissingAffiliatePair,
 } from "../db/repos/links.repo";
 import { extractDomain, normalizeUrl } from "../utils/url";
+import { withTx } from "../db/client";
 
 const logger = pino({ level: process.env.LOG_LEVEL ?? "info" });
 const BATCH_SIZE = Number(process.env.AFFILIATE_BATCH_SIZE ?? "50");
@@ -29,7 +30,9 @@ async function main() {
 
   logger.info({ job: "affiliate", batchSize: BATCH_SIZE }, "affiliate job started");
 
-  const candidates = await listNonAffiliateLinksMissingAffiliatePair(BATCH_SIZE);
+  const candidates = await withTx((client) =>
+    listNonAffiliateLinksMissingAffiliatePair(BATCH_SIZE, client),
+  );
   const stats: AffiliateStats = {
     candidates: candidates.length,
     converted: 0,
@@ -60,12 +63,17 @@ async function main() {
     }
 
     try {
-      await insertLink({
-        dealId: candidate.dealId,
-        url: normalized,
-        domain,
-        isAffiliate: true,
-      });
+      await withTx((client) =>
+        insertLink(
+          {
+            dealId: candidate.dealId,
+            url: normalized,
+            domain,
+            isAffiliate: true,
+          },
+          client,
+        ),
+      );
       stats.converted += 1;
     } catch (error) {
       stats.failed += 1;

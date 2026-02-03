@@ -22,9 +22,9 @@ import { createDeal, updateDeal } from "../db/repos/deals.repo";
 import { upsertSource, findBySourcePost } from "../db/repos/dealSources.repo";
 import { insertLink } from "../db/repos/links.repo";
 import { insertSnapshot } from "../db/repos/metrics.repo";
-import { findByName, getOrCreateByName } from "../db/repos/categories.repo";
+import { countCategories } from "../db/repos/categories.repo";
 import { upsertSourceCategory } from "../db/repos/sourceCategories.repo";
-import { findMappedCategoryIdBySourceCategoryId } from "../db/repos/categoryMappings.repo";
+import { findMappedCategoryId } from "../db/repos/categoryMappings.repo";
 
 import { extractDomain, normalizeUrl } from "../utils/url";
 import {
@@ -35,7 +35,6 @@ import {
   stripShopPrefix,
 } from "./pipelineHelpers";
 import { inferSubcategory } from "../parsers/common/inferSubcategory";
-import { inferCategory } from "../parsers/common/inferCategory";
 
 console.log("[BOOT] crawl.ts loaded", new Date().toISOString());
 
@@ -43,8 +42,6 @@ const LOG_LEVEL = process.env.LOG_LEVEL ?? "info";
 const logger = pino({ level: LOG_LEVEL });
 
 const SOURCE = "fmkorea" as const;
-const DEFAULT_CATEGORY_NAME =
-  process.env.DEFAULT_CATEGORY_NAME?.trim() || "UNCATEGORIZED";
 
 // 덤프 디렉토리 (실행 위치 기준으로 항상 생성)
 const DUMP_DIR =
@@ -71,6 +68,19 @@ type CrawlStats = {
   parserFailures: number;
   persistFailures: number;
   dumpedFailures: number;
+  sourceCategoryUpserts: number;
+  sourceCategoryMissing: number;
+  categoryMappingHits: number;
+  categoryMappingMisses: number;
+};
+
+type CategoryMappingMissSample = {
+  source: string;
+  sourceCategoryKey: string;
+  sourceCategoryName: string;
+  exampleDealId: number;
+  exampleSourcePostId: string;
+  examplePostUrl: string;
 };
 
 async function ensureDumpDir() {
@@ -192,8 +202,23 @@ async function main() {
     "parsed category info from list",
   );
 
-  const categoryId = await ensureDefaultCategory();
-  const categoryNameCache = new Map<string, number>();
+  const defaultCategoryId = requireDefaultCategoryId();
+  const categoryMappingMissSamples = new Map<
+    string,
+    CategoryMappingMissSample
+  >();
+  const categoryCountBefore = await withTx((client) =>
+    countCategories(client),
+  );
+  logger.info(
+    {
+      job: "crawl",
+      stage: "categories",
+      categoryCount: categoryCountBefore,
+      defaultCategoryId,
+    },
+    "category count before crawl",
+  );
   const itemsBySourcePostId = new Map(
     parsedList.data.items.map((item) => [item.sourcePostId, item]),
   );
@@ -330,6 +355,10 @@ async function main() {
     parserFailures: 0,
     persistFailures: 0,
     dumpedFailures,
+    sourceCategoryUpserts: 0,
+    sourceCategoryMissing: 0,
+    categoryMappingHits: 0,
+    categoryMappingMisses: 0,
   };
 
   // 3) PARSE + PERSIST
@@ -368,7 +397,13 @@ async function main() {
     }
 
     try {
-      await persistDeal(listItem, parsedDetail, categoryId, categoryNameCache);
+      await persistDeal(
+        listItem,
+        parsedDetail,
+        defaultCategoryId,
+        stats,
+        categoryMappingMissSamples,
+      );
       stats.processed += 1;
       console.log("[OK] persisted", detail.sourcePostId, parsedDetail.title);
     } catch (error) {
@@ -377,20 +412,56 @@ async function main() {
     }
   }
 
+  const categoryCountAfter = await withTx((client) =>
+    countCategories(client),
+  );
+  logger.info(
+    {
+      job: "crawl",
+      stage: "categories",
+      categoryCountBefore,
+      categoryCountAfter,
+      categoryCountDelta: categoryCountAfter - categoryCountBefore,
+    },
+    "category count after crawl",
+  );
+
+  logger.info(
+    {
+      job: "crawl",
+      stage: "category-mapping",
+      sourceCategoryUpserts: stats.sourceCategoryUpserts,
+      sourceCategoryMissing: stats.sourceCategoryMissing,
+      categoryMappingHits: stats.categoryMappingHits,
+      categoryMappingMisses: stats.categoryMappingMisses,
+      defaultCategoryId,
+    },
+    "category mapping summary",
+  );
+
+  const missingMappingList = Array.from(categoryMappingMissSamples.values());
+  if (missingMappingList.length > 0) {
+    logger.warn(
+      {
+        job: "crawl",
+        stage: "category-mapping-miss",
+        missingCount: missingMappingList.length,
+        missing: missingMappingList,
+      },
+      "category mapping missing (needs manual mapping)",
+    );
+  }
+
   logger.info({ job: "crawl", ...stats }, "crawl job finished");
   console.log("[DONE]", stats);
-}
-
-async function ensureDefaultCategory(): Promise<number> {
-  const category = await getOrCreateByName(DEFAULT_CATEGORY_NAME);
-  return category.id;
 }
 
 async function persistDeal(
   listItem: FmkoreaListItem,
   detail: FmHotdealDetail,
   defaultCategoryId: number,
-  categoryNameCache: Map<string, number>,
+  stats: CrawlStats,
+  categoryMappingMissSamples: Map<string, CategoryMappingMissSample>,
 ): Promise<void> {
   const normalizedPrice = parsePrice(
     detail.price ?? listItem.priceText ?? null,
@@ -410,65 +481,69 @@ async function persistDeal(
   const purchaseDomain = normalizedPurchaseUrl
     ? extractDomain(normalizedPurchaseUrl)
     : null;
+  const sourceCategoryKey =
+    listItem.sourceCategoryKey ?? detail.sourceCategoryKey ?? null;
+  const sourceCategoryName =
+    listItem.sourceCategoryName ?? detail.sourceCategoryName ?? null;
 
   await withTx(async (client) => {
     let sourceCategoryId: number | null = null;
     let mappedCategoryId: number | null = null;
-    let inferredCategoryName: string | null = null;
-    let inferredCategoryId: number | null = null;
     let resolvedCategoryId: number | null = null;
+    let mappingMissKey: string | null = null;
 
-    if (listItem.sourceCategoryKey && listItem.sourceCategoryName) {
+    if (sourceCategoryKey && sourceCategoryName) {
+      stats.sourceCategoryUpserts += 1;
       const sourceCategory = await upsertSourceCategory(
         {
           source: SOURCE,
-          sourceKey: listItem.sourceCategoryKey,
-          name: listItem.sourceCategoryName,
+          sourceKey: sourceCategoryKey,
+          name: sourceCategoryName,
         },
         client
       );
       sourceCategoryId = sourceCategory.id;
-      mappedCategoryId = await findMappedCategoryIdBySourceCategoryId(
+      mappedCategoryId = await findMappedCategoryId(
         sourceCategoryId,
         client,
       );
       if (mappedCategoryId) {
         resolvedCategoryId = mappedCategoryId;
+        stats.categoryMappingHits += 1;
+      } else {
+        stats.categoryMappingMisses += 1;
+        mappingMissKey = `${SOURCE}:${sourceCategoryKey}`;
       }
     } else {
+      stats.sourceCategoryMissing += 1;
       logger.info(
         {
           job: "crawl",
           stage: "category",
           sourcePostId: listItem.sourcePostId,
-          sourceCategoryKey: listItem.sourceCategoryKey,
-          sourceCategoryName: listItem.sourceCategoryName,
+          sourceCategoryKey,
+          sourceCategoryName,
         },
-        "source category missing from list item",
+        "source category missing from list/detail",
       );
     }
 
     if (!resolvedCategoryId) {
-      const inferred = inferCategory({
-        title: dealTitle,
-        bodyText: detail.summaryText ?? null,
-        linkDomains: purchaseDomain ? [purchaseDomain] : null,
-      });
-      if (inferred) {
-        inferredCategoryName = inferred.categoryName;
-        inferredCategoryId = await resolveCategoryIdByName(
-          inferred.categoryName,
-          categoryNameCache,
-          client,
-        );
-        if (inferredCategoryId) {
-          resolvedCategoryId = inferredCategoryId;
-        }
-      }
-    }
-
-    if (!resolvedCategoryId) {
       resolvedCategoryId = defaultCategoryId;
+      if (mappingMissKey) {
+        logger.info(
+          {
+            job: "crawl",
+            stage: "category",
+            sourcePostId: listItem.sourcePostId,
+            sourceCategoryId,
+            sourceCategoryKey,
+            sourceCategoryName,
+            defaultCategoryId,
+          },
+          "category mapping missing; using default category",
+        );
+      }
     }
 
     const subcategory = inferSubcategory(
@@ -517,6 +592,22 @@ async function persistDeal(
       );
     }
 
+    if (
+      mappingMissKey &&
+      sourceCategoryKey &&
+      sourceCategoryName &&
+      !categoryMappingMissSamples.has(mappingMissKey)
+    ) {
+      categoryMappingMissSamples.set(mappingMissKey, {
+        source: SOURCE,
+        sourceCategoryKey,
+        sourceCategoryName,
+        exampleDealId: dealId,
+        exampleSourcePostId: listItem.sourcePostId,
+        examplePostUrl: listItem.postUrl,
+      });
+    }
+
     await upsertSource(
       {
         dealId,
@@ -537,8 +628,9 @@ async function persistDeal(
         sourcePostId: listItem.sourcePostId,
         sourceCategoryId,
         mappedCategoryId,
-        inferredCategoryName,
-        inferredCategoryId,
+        sourceCategoryKey,
+        sourceCategoryName,
+        defaultCategoryId,
         finalCategoryId: resolvedCategoryId,
       },
       "resolved category for deal",
@@ -597,19 +689,15 @@ async function persistDeal(
   });
 }
 
-async function resolveCategoryIdByName(
-  name: string,
-  cache: Map<string, number>,
-  client: Parameters<typeof findByName>[1],
-): Promise<number | null> {
-  const normalized = name.trim();
-  if (!normalized) return null;
-  const cached = cache.get(normalized);
-  if (cached) return cached;
-  const row = await findByName(normalized, client);
-  if (!row) return null;
-  cache.set(normalized, row.id);
-  return row.id;
+function requireDefaultCategoryId(): number {
+  const raw = process.env.DEFAULT_CATEGORY_ID?.trim() ?? "";
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value <= 0) {
+    throw new Error(
+      "DEFAULT_CATEGORY_ID env is required and must be a positive number",
+    );
+  }
+  return value;
 }
 
 main().catch((error) => {
