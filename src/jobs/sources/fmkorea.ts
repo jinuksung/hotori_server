@@ -1,8 +1,6 @@
 // 역할: FM코리아 크롤링 파이프라인의 실질 로직을 제공한다.
 // src/jobs/sources/fmkorea.ts
 import "dotenv/config";
-import fs from "node:fs/promises";
-import path from "node:path";
 import pino from "pino";
 
 import { fetchFmkoreaHotdealListHtml } from "../../crawlers/fmkorea/list";
@@ -43,11 +41,6 @@ const LOG_LEVEL = process.env.LOG_LEVEL ?? "info";
 const logger = pino({ level: LOG_LEVEL });
 
 const SOURCE = "fmkorea" as const;
-
-// 덤프 디렉토리 (실행 위치 기준으로 항상 생성)
-const DUMP_DIR =
-  process.env.FMKOREA_DETAIL_DUMP_DIR?.trim() ||
-  path.join(process.cwd(), "tmp", "fmkorea-detail-dumps");
 
 // 상세 크롤링 옵션
 const DETAIL_TIMEOUT_MS = Number(
@@ -102,11 +95,6 @@ function createEmptyStats(listItems: number): CrawlStats {
   };
 }
 
-// 역할: 실패 덤프 디렉토리를 보장한다.
-async function ensureDumpDir() {
-  await fs.mkdir(DUMP_DIR, { recursive: true });
-}
-
 // 역할: PC URL을 모바일 URL로 변환한다.
 function toMobileUrl(url: string): string {
   try {
@@ -118,49 +106,6 @@ function toMobileUrl(url: string): string {
   }
 }
 
-// 역할: 파일명으로 사용할 수 있도록 문자열을 정제한다.
-function safeFilename(s: string) {
-  return s.replace(/[^\w.-]+/g, "_").slice(0, 180);
-}
-
-// 역할: 실패 케이스의 메타/HTML을 덤프한다.
-async function dumpFailure(args: {
-  sourcePostId: string;
-  postUrl: string;
-  error: string;
-  html?: string;
-}) {
-  await ensureDumpDir();
-  const ts = new Date().toISOString().replace(/[:.]/g, "-");
-  const base = `${ts}_${args.sourcePostId}_${safeFilename(args.postUrl)}`;
-
-  const metaPath = path.join(DUMP_DIR, `${base}.json`);
-  const htmlPath = path.join(DUMP_DIR, `${base}.html`);
-
-  const meta = {
-    capturedAt: new Date().toISOString(),
-    sourcePostId: args.sourcePostId,
-    postUrl: args.postUrl,
-    error: args.error,
-    dumpDir: DUMP_DIR,
-  };
-
-  await fs.writeFile(metaPath, JSON.stringify(meta, null, 2), "utf-8");
-  if (args.html) {
-    await fs.writeFile(htmlPath, args.html, "utf-8");
-  }
-
-  logger.warn(
-    {
-      job: "crawl",
-      stage: "dump",
-      metaPath,
-      htmlPath: args.html ? htmlPath : null,
-    },
-    "saved failure dump",
-  );
-  console.log("[DUMP]", metaPath, args.html ? htmlPath : "");
-}
 
 // 역할: FM코리아 크롤링 전체 플로우를 실행하고 통계를 반환한다.
 export async function crawlFmkorea(): Promise<CrawlStats> {
@@ -261,7 +206,6 @@ export async function crawlFmkorea(): Promise<CrawlStats> {
     postUrl: string;
   }> = [];
   let detailFailures = 0;
-  let dumpedFailures = 0;
 
   logger.info(
     {
@@ -270,7 +214,6 @@ export async function crawlFmkorea(): Promise<CrawlStats> {
       targetCount: detailTargets.length,
       timeoutMs: DETAIL_TIMEOUT_MS,
       headless: DETAIL_HEADLESS,
-      dumpDir: DUMP_DIR,
       mobileFallback: ENABLE_MOBILE_FALLBACK,
     },
     "starting detail crawl",
@@ -283,7 +226,6 @@ export async function crawlFmkorea(): Promise<CrawlStats> {
         targetCount: detailTargets.length,
         timeoutMs: DETAIL_TIMEOUT_MS,
         headless: DETAIL_HEADLESS,
-        dumpDir: DUMP_DIR,
         mobileFallback: ENABLE_MOBILE_FALLBACK,
       },
       null,
@@ -340,17 +282,6 @@ export async function crawlFmkorea(): Promise<CrawlStats> {
       const errorMsg = failure?.error ?? "unknown";
 
       console.log(`[FAIL] detail failed: ${target.sourcePostId}`, errorMsg);
-
-      try {
-        await dumpFailure({
-          sourcePostId: target.sourcePostId,
-          postUrl: mobileTarget.postUrl,
-          error: errorMsg,
-        });
-        dumpedFailures += 1;
-      } catch (e) {
-        console.log("[ERROR] dump failed", e);
-      }
       continue;
     }
 
@@ -359,17 +290,6 @@ export async function crawlFmkorea(): Promise<CrawlStats> {
     const failure = result1.failures[0];
     const errorMsg = failure?.error ?? "unknown";
     console.log(`[FAIL] detail failed: ${target.sourcePostId}`, errorMsg);
-
-    try {
-      await dumpFailure({
-        sourcePostId: target.sourcePostId,
-        postUrl: target.postUrl,
-        error: errorMsg,
-      });
-      dumpedFailures += 1;
-    } catch (e) {
-      console.log("[ERROR] dump failed", e);
-    }
   }
 
   const stats: CrawlStats = {
@@ -380,7 +300,7 @@ export async function crawlFmkorea(): Promise<CrawlStats> {
     skipped: 0,
     parserFailures: 0,
     persistFailures: 0,
-    dumpedFailures,
+    dumpedFailures: 0,
     sourceCategoryUpserts: 0,
     sourceCategoryMissing: 0,
     categoryMappingHits: 0,
@@ -407,18 +327,6 @@ export async function crawlFmkorea(): Promise<CrawlStats> {
     } catch (error) {
       stats.parserFailures += 1;
       console.log("[ERROR] parse detail failed", detail.sourcePostId, error);
-
-      try {
-        await dumpFailure({
-          sourcePostId: detail.sourcePostId,
-          postUrl: detail.postUrl,
-          error: `parse failed: ${error instanceof Error ? error.message : String(error)}`,
-          html: detail.html,
-        });
-        stats.dumpedFailures += 1;
-      } catch (e) {
-        console.log("[ERROR] dump failed", e);
-      }
       continue;
     }
 

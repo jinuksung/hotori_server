@@ -3,56 +3,8 @@
 import "dotenv/config";
 import Bottleneck from "bottleneck";
 import { chromium, type BrowserContext } from "playwright";
-import fs from "node:fs/promises";
-import path from "node:path";
 import type { Result } from "../../types";
 import { normalizeUrl } from "../../utils/url";
-import crypto from "node:crypto";
-
-const DEBUG_DIR = path.resolve(process.cwd(), ".debug", "fmkorea_detail");
-
-// 역할: 파일 시스템에 안전한 이름으로 정규화한다.
-function safeName(input: string) {
-  return input.replace(/[^a-zA-Z0-9._-]+/g, "_").slice(0, 120);
-}
-
-// 역할: 크롤링 디버그 아티팩트를 파일로 저장한다.
-async function dumpDebugArtifacts(params: {
-  tag: string;
-  url: string;
-  html?: string;
-  screenshotPng?: Buffer;
-  extra?: Record<string, unknown>;
-}) {
-  const { tag, url, html, screenshotPng, extra } = params;
-
-  await fs.mkdir(DEBUG_DIR, { recursive: true });
-
-  const ts = new Date().toISOString().replace(/[:.]/g, "-");
-  const hash = crypto.createHash("md5").update(url).digest("hex").slice(0, 8);
-  const base = `${ts}_${safeName(tag)}_${hash}`;
-
-  const writes: string[] = [];
-
-  if (html) {
-    const p = path.join(DEBUG_DIR, `${base}.html`);
-    await fs.writeFile(p, html, "utf8");
-    writes.push(p);
-  }
-  if (screenshotPng) {
-    const p = path.join(DEBUG_DIR, `${base}.png`);
-    await fs.writeFile(p, screenshotPng);
-    writes.push(p);
-  }
-  if (extra) {
-    const p = path.join(DEBUG_DIR, `${base}.json`);
-    await fs.writeFile(p, JSON.stringify({ url, ...extra }, null, 2), "utf8");
-    writes.push(p);
-  }
-
-  console.log("[DEBUG] artifacts saved:", writes.length ? writes : "(nothing)");
-  console.log("[DEBUG] DEBUG_DIR =", DEBUG_DIR);
-}
 
 type LoadState = "load" | "domcontentloaded" | "networkidle" | "commit";
 
@@ -221,10 +173,6 @@ async function loadDetailHtml(
 ): Promise<string> {
   const page = await context.newPage();
 
-  // 🔥 dump가 호출되는지 1차 확인용
-  console.log("[DEBUG] loadDetailHtml start:", url);
-  console.log("[DEBUG] DEBUG_DIR =", DEBUG_DIR);
-
   try {
     await page.goto(url, {
       waitUntil: options.waitUntil,
@@ -237,45 +185,7 @@ async function loadDetailHtml(
       })
       .catch(() => {});
 
-    const html = await page.content();
-
-    // ✅ 성공 케이스도 덤프 (최초 1~2번만 보고 싶으면 조건 걸어도 됨)
-    const png = await page
-      .screenshot({ type: "png", fullPage: true })
-      .catch(() => undefined);
-
-    await dumpDebugArtifacts({
-      tag: "OK",
-      url,
-      html,
-      screenshotPng: png,
-      extra: {
-        title: await page.title().catch(() => ""),
-        finalUrl: page.url(),
-      },
-    });
-
-    return html;
-  } catch (err) {
-    // ✅ 실패 케이스 덤프
-    const png = await page
-      .screenshot({ type: "png", fullPage: true })
-      .catch(() => undefined);
-    const html = await page.content().catch(() => undefined);
-
-    await dumpDebugArtifacts({
-      tag: "FAIL",
-      url,
-      html,
-      screenshotPng: png,
-      extra: {
-        error: err instanceof Error ? err.message : String(err),
-        title: await page.title().catch(() => ""),
-        finalUrl: page.url(),
-      },
-    });
-
-    throw err;
+    return await page.content();
   } finally {
     await page.close();
   }
