@@ -1,0 +1,64 @@
+name: hotori-fmkorea
+
+on:
+  workflow_dispatch:
+  schedule:
+    # GitHub Actions cron uses UTC.
+    - cron: "*/30 * * * *"
+
+concurrency:
+  group: hotori-fmkorea
+  cancel-in-progress: true
+
+jobs:
+  pipeline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright (Chromium)
+        run: npx playwright install --with-deps chromium
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Crawl (FMKorea)
+        run: npm run crawl:fmkorea
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DEFAULT_CATEGORY_ID: ${{ secrets.DEFAULT_CATEGORY_ID }}
+          FMKOREA_BASE_URL: ${{ vars.FMKOREA_BASE_URL }}
+          FMKOREA_MOBILE_BASE_URL: ${{ vars.FMKOREA_MOBILE_BASE_URL }}
+          FMKOREA_DETAIL_CONCURRENCY: "2"
+          FMKOREA_DETAIL_MIN_TIME_MS: "500"
+          LOG_LEVEL: info
+
+      - name: Affiliate
+        if: ${{ secrets.AFFILIATE_REDIRECT_BASE != '' }}
+        run: npm run affiliate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          AFFILIATE_REDIRECT_BASE: ${{ secrets.AFFILIATE_REDIRECT_BASE }}
+          AFFILIATE_TRACKING_ID: ${{ secrets.AFFILIATE_TRACKING_ID }}
+          AFFILIATE_BATCH_SIZE: "50"
+          LOG_LEVEL: info
+
+      - name: Refresh metrics
+        run: npm run refresh
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          REFRESH_BATCH_SIZE: "20"
+          LOG_LEVEL: info
+
