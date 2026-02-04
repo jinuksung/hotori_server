@@ -45,8 +45,8 @@ jobs:
           DEFAULT_CATEGORY_ID: ${{ secrets.DEFAULT_CATEGORY_ID }}
           FMKOREA_BASE_URL: ${{ vars.FMKOREA_BASE_URL }}
           FMKOREA_MOBILE_BASE_URL: ${{ vars.FMKOREA_MOBILE_BASE_URL }}
-          FMKOREA_DETAIL_CONCURRENCY: "2"
-          FMKOREA_DETAIL_MIN_TIME_MS: "500"
+          FMKOREA_DETAIL_CONCURRENCY: "1"
+          FMKOREA_DETAIL_MIN_TIME_MS: "2500"
           LOG_LEVEL: info
 
       - name: Affiliate
