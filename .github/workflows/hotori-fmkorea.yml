@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   schedule:
     # GitHub Actions cron uses UTC.
-    # - cron: "*/30 * * * *"
+    - cron: "*/30 * * * *"
 
 concurrency:
   group: hotori-fmkorea
