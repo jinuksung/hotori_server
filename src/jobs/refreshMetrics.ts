@@ -145,17 +145,32 @@ async function persistMetrics(
       client
     );
 
-    await appendRaw(
-      {
-        source: SOURCE,
-        sourcePostId: post.sourcePostId,
-        payload: {
-          detail,
-          refreshedAt: new Date().toISOString(),
+    if (!detail.documentSrl) {
+      logger.warn(
+        {
+          job: "refresh",
+          stage: "raw",
+          sourcePostId: post.sourcePostId,
+          dealId: post.dealId,
+          documentSrl: detail.documentSrl,
+          detailUrl: detail.url,
+          canonicalUrl: detail.canonicalUrl,
         },
-      },
-      client
-    );
+        "skip raw_deals insert: document_srl missing",
+      );
+    } else {
+      await appendRaw(
+        {
+          source: SOURCE,
+          sourcePostId: post.sourcePostId,
+          payload: {
+            detail,
+            refreshedAt: new Date().toISOString(),
+          },
+        },
+        client
+      );
+    }
   });
 }
 

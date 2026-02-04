@@ -572,18 +572,33 @@ async function persistDeal(
       "resolved category for deal",
     );
 
-    await appendRaw(
-      {
-        source: SOURCE,
-        sourcePostId: listItem.sourcePostId,
-        payload: {
-          list: listItem,
-          detail,
-          capturedAt: new Date().toISOString(),
+    if (!detail.documentSrl) {
+      logger.warn(
+        {
+          job: "crawl",
+          stage: "raw",
+          sourcePostId: listItem.sourcePostId,
+          dealId,
+          documentSrl: detail.documentSrl,
+          detailUrl: detail.url,
+          canonicalUrl: detail.canonicalUrl,
         },
-      },
-      client,
-    );
+        "skip raw_deals insert: document_srl missing",
+      );
+    } else {
+      await appendRaw(
+        {
+          source: SOURCE,
+          sourcePostId: listItem.sourcePostId,
+          payload: {
+            list: listItem,
+            detail,
+            capturedAt: new Date().toISOString(),
+          },
+        },
+        client,
+      );
+    }
 
     logger.info(
       {
