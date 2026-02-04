@@ -134,7 +134,7 @@ async function persistMetrics(
   detail: FmHotdealDetail
 ): Promise<void> {
   const normalizedPrice = parsePrice(detail.price ?? null);
-  const shippingType = mapShippingType(detail.shipping ?? null);
+  const shippingType = mapShippingType(detail.shipping ?? null, detail.title ?? null);
   const soldOut = detectSoldOut(detail.title);
   const thumbnailUrl = detail.ogImage ?? null;
   const rawShopName = detail.mall ?? null;

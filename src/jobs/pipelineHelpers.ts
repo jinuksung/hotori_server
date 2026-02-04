@@ -18,19 +18,15 @@ export function parsePrice(text?: string | null): number | null {
   return Number.isFinite(value) ? value : null;
 }
 
-// 역할: 배송 문구를 표준 배송 타입으로 매핑한다.
-export function mapShippingType(text?: string | null): ShippingType {
-  if (!text) return "UNKNOWN";
-  const normalized = text.toLowerCase();
-  if (normalized.includes("무료") || normalized.includes("free")) return "FREE";
-  if (
-    normalized.includes("유료") ||
-    normalized.includes("paid") ||
-    normalized.includes("착불")
-  ) {
-    return "PAID";
-  }
-  return "UNKNOWN";
+// 역할: 배송 문구/제목을 표준 배송 타입으로 매핑한다.
+export function mapShippingType(
+  text?: string | null,
+  title?: string | null,
+): ShippingType {
+  const fromText = classifyShippingText(text);
+  if (fromText) return fromText;
+  const fromTitle = classifyShippingFromTitle(title);
+  return fromTitle ?? "UNKNOWN";
 }
 
 // 역할: 제목/본문에서 품절 여부 키워드를 탐지한다.
@@ -104,4 +100,100 @@ function looksLikeShipping(inner: string): boolean {
     inner.includes("직배") ||
     inner.includes("shipping")
   );
+}
+
+// 역할: 배송 문구에서 배송 타입을 추정한다.
+function classifyShippingText(text?: string | null): ShippingType | null {
+  if (!text) return null;
+  const normalized = text.toLowerCase().trim();
+  if (!normalized) return null;
+
+  if (isConditionalFree(normalized)) {
+    return "UNKNOWN";
+  }
+
+  if (containsFree(normalized)) return "FREE";
+  if (containsPaid(normalized)) return "PAID";
+  const amount = parseWonAmount(normalized);
+  if (amount !== null) {
+    return amount === 0 ? "FREE" : "PAID";
+  }
+  return null;
+}
+
+// 역할: 제목 끝 괄호에서 배송 타입을 추정한다.
+function classifyShippingFromTitle(title?: string | null): ShippingType | null {
+  if (!title) return null;
+  const groups = extractTrailingParenGroups(title);
+  if (groups.length === 0) return null;
+
+  for (const raw of groups) {
+    const normalized = raw.toLowerCase().trim();
+    if (!normalized) continue;
+
+    if (isConditionalFree(normalized)) return "UNKNOWN";
+    if (containsFree(normalized)) return "FREE";
+    if (containsPaid(normalized)) return "PAID";
+
+    const amount = parseWonAmount(normalized);
+    if (amount !== null) {
+      return amount === 0 ? "FREE" : "PAID";
+    }
+  }
+
+  return null;
+}
+
+// 역할: 제목 끝의 괄호 그룹을 뒤에서부터 추출한다.
+function extractTrailingParenGroups(title: string): string[] {
+  let rest = title.trim();
+  const groups: string[] = [];
+  while (true) {
+    const match = rest.match(/\s*\(([^()]*)\)\s*$/);
+    if (!match || match.index === undefined) break;
+    groups.push(match[1]);
+    rest = rest.slice(0, match.index).trim();
+  }
+  return groups;
+}
+
+// 역할: 조건부 무료 패턴을 감지한다.
+function isConditionalFree(text: string): boolean {
+  const compact = text.replace(/\s+/g, "");
+  return (
+    compact.includes("네멤무료") ||
+    compact.includes("멤버십무료") ||
+    compact.includes("회원무료") ||
+    compact.includes("회원전용무료") ||
+    compact.includes("조건부") ||
+    /\d+(만|천)?원이상무료/.test(compact)
+  );
+}
+
+// 역할: 무료 배송 표현을 감지한다.
+function containsFree(text: string): boolean {
+  return (
+    text.includes("무료") ||
+    text.includes("무배") ||
+    text.includes("free") ||
+    text.includes("0원")
+  );
+}
+
+// 역할: 유료 배송 표현을 감지한다.
+function containsPaid(text: string): boolean {
+  return (
+    text.includes("유료") ||
+    text.includes("paid") ||
+    text.includes("착불")
+  );
+}
+
+// 역할: "(3,000원)" 같은 금액 표현을 원 단위 숫자로 파싱한다.
+function parseWonAmount(text: string): number | null {
+  if (!text.includes("원")) return null;
+  const digits = text.replace(/[^0-9]/g, "");
+  if (!digits) return null;
+  const value = Number(digits);
+  return Number.isFinite(value) ? value : null;
 }

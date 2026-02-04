@@ -405,6 +405,7 @@ async function persistDeal(
   );
   const shippingType = mapShippingType(
     detail.shipping ?? listItem.shippingText ?? null,
+    detail.title ?? listItem.title ?? null,
   );
   const soldOut = detectSoldOut(detail.title, listItem.title);
   const thumbnailUrl = detail.ogImage ?? listItem.thumbUrl ?? null;
