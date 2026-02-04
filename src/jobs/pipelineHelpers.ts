@@ -22,10 +22,11 @@ export function parsePrice(text?: string | null): number | null {
 export function mapShippingType(
   text?: string | null,
   title?: string | null,
+  price?: number | null,
 ): ShippingType {
   const fromText = classifyShippingText(text);
   if (fromText) return fromText;
-  const fromTitle = classifyShippingFromTitle(title);
+  const fromTitle = classifyShippingFromTitle(title, price);
   return fromTitle ?? "UNKNOWN";
 }
 
@@ -122,10 +123,15 @@ function classifyShippingText(text?: string | null): ShippingType | null {
 }
 
 // 역할: 제목 끝 괄호에서 배송 타입을 추정한다.
-function classifyShippingFromTitle(title?: string | null): ShippingType | null {
+function classifyShippingFromTitle(
+  title?: string | null,
+  price?: number | null,
+): ShippingType | null {
   if (!title) return null;
   const groups = extractTrailingParenGroups(title);
   if (groups.length === 0) return null;
+  const normalizedPrice =
+    typeof price === "number" && Number.isFinite(price) ? price : null;
 
   for (const raw of groups) {
     const normalized = raw.toLowerCase().trim();
@@ -137,6 +143,9 @@ function classifyShippingFromTitle(title?: string | null): ShippingType | null {
 
     const amount = parseWonAmount(normalized);
     if (amount !== null) {
+      if (normalizedPrice !== null && amount === normalizedPrice) {
+        continue;
+      }
       return amount === 0 ? "FREE" : "PAID";
     }
   }
