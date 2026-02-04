@@ -21,6 +21,16 @@ const USER_AGENT =
 const DEFAULT_VIEWPORT = { width: 1280, height: 800 };
 const DEFAULT_TIMEOUT_MS = 45_000;
 const DEFAULT_MAX_RETRIES = 3;
+const BLOCK_HINTS = [
+  "captcha",
+  "cloudflare",
+  "access denied",
+  "robot",
+  "봇",
+  "차단",
+  "접근",
+  "권한",
+];
 
 // 역할: 핫딜 리스트 페이지의 HTML을 가져온다(재시도 포함).
 export async function fetchFmkoreaHotdealListHtml(
@@ -38,6 +48,17 @@ export async function fetchFmkoreaHotdealListHtml(
         timeout: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
       });
       const html = await page.content();
+      const title = await page.title().catch(() => "");
+      const finalUrl = page.url();
+      console.log("[LIST] fetched", {
+        url: listUrl,
+        finalUrl,
+        title,
+        htmlLength: html.length,
+      });
+      if (looksBlocked(html)) {
+        console.log("[LIST] possible block detected", { finalUrl, title });
+      }
       return html;
     } finally {
       await closeContext(context);
@@ -103,4 +124,10 @@ function formatError(error: unknown): string {
   if (error instanceof Error) return error.message;
   if (typeof error === "string") return error;
   return "Unknown crawler error";
+}
+
+// 역할: HTML에서 차단/캡차 징후를 감지한다.
+function looksBlocked(html: string): boolean {
+  const lowered = html.toLowerCase();
+  return BLOCK_HINTS.some((hint) => lowered.includes(hint));
 }
