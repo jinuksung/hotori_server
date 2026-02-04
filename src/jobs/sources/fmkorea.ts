@@ -486,6 +486,19 @@ async function persistDeal(
       }
     }
 
+    logger.info(
+      {
+        job: "crawl",
+        stage: "shipping",
+        sourcePostId: listItem.sourcePostId,
+        price: normalizedPrice,
+        shippingText: detail.shipping ?? listItem.shippingText ?? null,
+        title: detail.title ?? listItem.title ?? null,
+        shippingType,
+      },
+      "resolved shipping type",
+    );
+
     if (rawShopName) {
       normalizedShopName = await findNormalizedShopName(
         SOURCE,

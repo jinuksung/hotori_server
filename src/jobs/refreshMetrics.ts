@@ -162,6 +162,20 @@ async function persistMetrics(
       );
     }
 
+    logger.info(
+      {
+        job: "refresh",
+        stage: "shipping",
+        sourcePostId: post.sourcePostId,
+        dealId: post.dealId,
+        price: normalizedPrice,
+        shippingText: detail.shipping ?? null,
+        title: detail.title ?? null,
+        shippingType,
+      },
+      "resolved shipping type",
+    );
+
     await updateDeal(
       post.dealId,
       {
