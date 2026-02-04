@@ -165,7 +165,7 @@ export async function fetchFmkoreaDetailHtmls(
   }
 }
 
-// 역할: 단일 상세 페이지의 HTML을 로드하고 필요 시 디버그 덤프를 남긴다.
+// 역할: 단일 상세 페이지의 HTML을 로드하고 디버그 로그를 남긴다.
 async function loadDetailHtml(
   context: BrowserContext,
   url: string,
@@ -185,7 +185,16 @@ async function loadDetailHtml(
       })
       .catch(() => {});
 
-    return await page.content();
+    const html = await page.content();
+    console.log("[DETAIL] fetched", { url, finalUrl: page.url() });
+    return html;
+  } catch (err) {
+    console.log("[DETAIL] fetch failed", {
+      url,
+      finalUrl: page.url(),
+      error: err instanceof Error ? err.message : String(err),
+    });
+    throw err;
   } finally {
     await page.close();
   }

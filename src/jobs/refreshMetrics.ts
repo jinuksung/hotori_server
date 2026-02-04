@@ -18,6 +18,11 @@ import {
 const logger = pino({ level: process.env.LOG_LEVEL ?? "info" });
 const SOURCE = "fmkorea" as const;
 const REFRESH_BATCH_SIZE = Number(process.env.REFRESH_BATCH_SIZE ?? "20");
+const DETAIL_TIMEOUT_MS = Number(
+  process.env.FMKOREA_DETAIL_TIMEOUT_MS ?? "45000",
+);
+const DETAIL_HEADLESS =
+  (process.env.FMKOREA_DETAIL_HEADLESS ?? "true") === "true";
 
 type RefreshStats = {
   targets: number;
@@ -52,7 +57,21 @@ async function main() {
     postUrl: post.postUrl,
   }));
 
-  const detailResult = await fetchFmkoreaDetailHtmls(detailTargets);
+  const detailResult = await fetchFmkoreaDetailHtmls(detailTargets, {
+    headless: DETAIL_HEADLESS,
+    timeoutMs: DETAIL_TIMEOUT_MS,
+    waitUntil: "domcontentloaded",
+  });
+  logger.info(
+    {
+      job: "refresh",
+      stage: "detail-crawl",
+      targets: detailTargets.length,
+      headless: DETAIL_HEADLESS,
+      timeoutMs: DETAIL_TIMEOUT_MS,
+    },
+    "refresh detail crawl config",
+  );
   detailResult.failures.forEach((failure) => {
     logger.warn(
       {
