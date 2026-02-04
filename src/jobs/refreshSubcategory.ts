@@ -4,7 +4,7 @@ import pino from "pino";
 import { listDealsForSubcategory, updateDeal } from "../db/repos/deals.repo";
 import { withTx } from "../db/client";
 import { inferSubcategory } from "../parsers/common/inferSubcategory";
-import { stripShopPrefix } from "./pipelineHelpers";
+import { normalizeDealTitle } from "./pipelineHelpers";
 
 const logger = pino({ level: process.env.LOG_LEVEL ?? "info" });
 const BATCH_SIZE = Number(process.env.REFRESH_SUBCATEGORY_BATCH_SIZE ?? "200");
@@ -32,7 +32,7 @@ async function main() {
 
     for (const row of rows) {
       const baseTitle = row.sourceTitle ?? row.title;
-      const title = stripShopPrefix(baseTitle);
+      const title = normalizeDealTitle(baseTitle);
       const nextSubcategory = inferSubcategory(
         row.categoryId,
         title,

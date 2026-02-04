@@ -30,9 +30,9 @@ import { extractDomain, normalizeUrl } from "../../utils/url";
 import {
   detectSoldOut,
   mapShippingType,
+  normalizeDealTitle,
   parsePrice,
   selectPurchaseLink,
-  stripShopPrefix,
 } from "../pipelineHelpers";
 import { inferSubcategory } from "../../parsers/common/inferSubcategory";
 
@@ -410,7 +410,7 @@ async function persistDeal(
   const thumbnailUrl = detail.ogImage ?? listItem.thumbUrl ?? null;
   const rawShopName = detail.mall ?? listItem.shopText ?? null;
   const rawTitle = (detail.title ?? listItem.title).trim();
-  const dealTitle = stripShopPrefix(rawTitle);
+  const dealTitle = normalizeDealTitle(rawTitle);
   const purchaseUrl = selectPurchaseLink(detail);
   const normalizedPurchaseUrl = purchaseUrl
     ? (normalizeUrl(purchaseUrl) ?? purchaseUrl)
@@ -572,7 +572,7 @@ async function persistDeal(
         sourcePostId: listItem.sourcePostId,
         postUrl: listItem.postUrl,
         sourceCategoryId,
-        title: listItem.title,
+        title: detail.title ?? listItem.title,
         thumbUrl: listItem.thumbUrl ?? thumbnailUrl,
         shopNameRaw: rawShopName,
       },

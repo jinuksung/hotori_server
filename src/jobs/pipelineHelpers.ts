@@ -3,6 +3,12 @@
 import type { ShippingType } from "../types";
 import type { FmHotdealDetail } from "../parsers/fmkorea/parseDetail";
 
+// 역할: 딜 제목에서 상점 접두/가격/배송 정보를 제거해 정규화한다.
+export function normalizeDealTitle(title: string): string {
+  const stripped = stripShopPrefix(title);
+  return stripTrailingPriceShipping(stripped);
+}
+
 // 역할: 가격 문자열에서 숫자만 추출해 number로 변환한다.
 export function parsePrice(text?: string | null): number | null {
   if (!text) return null;
@@ -55,4 +61,47 @@ export function selectPurchaseLink(detail: FmHotdealDetail): string | null {
 export function stripShopPrefix(title: string): string {
   const withoutPrefix = title.replace(/^\s*\[[^\]]+\]\s*/u, "").trim();
   return withoutPrefix.replace(/\s*\[[^\]]*제휴\s*링크[^\]]*\]\s*$/u, "").trim();
+}
+
+// 역할: 제목 끝의 가격/배송 정보 괄호를 제거한다.
+function stripTrailingPriceShipping(title: string): string {
+  let result = title.trim();
+  while (true) {
+    const match = result.match(/\s*\(([^()]*)\)\s*$/);
+    if (!match || match.index === undefined) break;
+    const inner = match[1].trim().toLowerCase();
+    if (looksLikePrice(inner) || looksLikeShipping(inner)) {
+      result = result.slice(0, match.index).trim();
+      continue;
+    }
+    break;
+  }
+  return result;
+}
+
+// 역할: 괄호 내부 텍스트가 가격 표현인지 판단한다.
+function looksLikePrice(inner: string): boolean {
+  const hasDigit = /\d/.test(inner);
+  const hasCurrency =
+    inner.includes("원") ||
+    inner.includes("만원") ||
+    inner.includes("달러") ||
+    inner.includes("usd") ||
+    inner.includes("krw") ||
+    inner.includes("₩") ||
+    inner.includes("$");
+  return hasDigit && hasCurrency;
+}
+
+// 역할: 괄호 내부 텍스트가 배송 표현인지 판단한다.
+function looksLikeShipping(inner: string): boolean {
+  return (
+    inner.includes("무료") ||
+    inner.includes("무배") ||
+    inner.includes("유료") ||
+    inner.includes("배송") ||
+    inner.includes("착불") ||
+    inner.includes("직배") ||
+    inner.includes("shipping")
+  );
 }

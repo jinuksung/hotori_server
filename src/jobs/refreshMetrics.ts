@@ -12,8 +12,8 @@ import { findNormalizedShopName } from "../db/repos/shopNameMappings.repo";
 import {
   detectSoldOut,
   mapShippingType,
+  normalizeDealTitle,
   parsePrice,
-  stripShopPrefix,
 } from "./pipelineHelpers";
 
 const logger = pino({ level: process.env.LOG_LEVEL ?? "info" });
@@ -138,7 +138,7 @@ async function persistMetrics(
   const soldOut = detectSoldOut(detail.title);
   const thumbnailUrl = detail.ogImage ?? null;
   const rawShopName = detail.mall ?? null;
-  const title = detail.title ? stripShopPrefix(detail.title) : undefined;
+  const title = detail.title ? normalizeDealTitle(detail.title) : undefined;
 
   await withTx(async (client) => {
     const normalizedShopName = rawShopName
