@@ -24,6 +24,7 @@ import { insertSnapshot } from "../../db/repos/metrics.repo";
 import { countCategories } from "../../db/repos/categories.repo";
 import { upsertSourceCategory } from "../../db/repos/sourceCategories.repo";
 import { findMappedCategoryId } from "../../db/repos/categoryMappings.repo";
+import { findNormalizedShopName } from "../../db/repos/shopNameMappings.repo";
 
 import { extractDomain, normalizeUrl } from "../../utils/url";
 import {
@@ -407,7 +408,7 @@ async function persistDeal(
   );
   const soldOut = detectSoldOut(detail.title, listItem.title);
   const thumbnailUrl = detail.ogImage ?? listItem.thumbUrl ?? null;
-  const shopName = detail.mall ?? listItem.shopText ?? null;
+  const rawShopName = detail.mall ?? listItem.shopText ?? null;
   const rawTitle = (detail.title ?? listItem.title).trim();
   const dealTitle = stripShopPrefix(rawTitle);
   const purchaseUrl = selectPurchaseLink(detail);
@@ -427,6 +428,7 @@ async function persistDeal(
     let mappedCategoryId: number | null = null;
     let resolvedCategoryId: number | null = null;
     let mappingMissKey: string | null = null;
+    let normalizedShopName: string | null = null;
 
     if (sourceCategoryKey && sourceCategoryName) {
       stats.sourceCategoryUpserts += 1;
@@ -482,6 +484,25 @@ async function persistDeal(
       }
     }
 
+    if (rawShopName) {
+      normalizedShopName = await findNormalizedShopName(
+        SOURCE,
+        rawShopName,
+        client,
+      );
+      if (!normalizedShopName) {
+        logger.info(
+          {
+            job: "crawl",
+            stage: "shop",
+            sourcePostId: listItem.sourcePostId,
+            rawShopName,
+          },
+          "shop name mapping missing; storing null in deals",
+        );
+      }
+    }
+
     const subcategory = inferSubcategory(
       resolvedCategoryId,
       dealTitle,
@@ -501,7 +522,7 @@ async function persistDeal(
         {
           categoryId: resolvedCategoryId,
           title: dealTitle,
-          shopName,
+          shopName: normalizedShopName,
           subcategory,
           price: normalizedPrice,
           shippingType,
@@ -517,7 +538,7 @@ async function persistDeal(
         {
           categoryId: resolvedCategoryId,
           title: dealTitle,
-          shopName,
+          shopName: normalizedShopName,
           subcategory,
           price: normalizedPrice,
           shippingType,
@@ -553,6 +574,7 @@ async function persistDeal(
         sourceCategoryId,
         title: listItem.title,
         thumbUrl: listItem.thumbUrl ?? thumbnailUrl,
+        shopNameRaw: rawShopName,
       },
       client,
     );

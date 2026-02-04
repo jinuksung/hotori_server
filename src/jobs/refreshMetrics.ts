@@ -8,6 +8,7 @@ import { updateDeal } from "../db/repos/deals.repo";
 import { insertSnapshot } from "../db/repos/metrics.repo";
 import { appendRaw } from "../db/repos/rawDeals.repo";
 import { withTx } from "../db/client";
+import { findNormalizedShopName } from "../db/repos/shopNameMappings.repo";
 import {
   detectSoldOut,
   mapShippingType,
@@ -136,15 +137,32 @@ async function persistMetrics(
   const shippingType = mapShippingType(detail.shipping ?? null);
   const soldOut = detectSoldOut(detail.title);
   const thumbnailUrl = detail.ogImage ?? null;
-  const shopName = detail.mall ?? null;
+  const rawShopName = detail.mall ?? null;
   const title = detail.title ? stripShopPrefix(detail.title) : undefined;
 
   await withTx(async (client) => {
+    const normalizedShopName = rawShopName
+      ? await findNormalizedShopName(SOURCE, rawShopName, client)
+      : null;
+
+    if (rawShopName && !normalizedShopName) {
+      logger.info(
+        {
+          job: "refresh",
+          stage: "shop",
+          sourcePostId: post.sourcePostId,
+          dealId: post.dealId,
+          rawShopName,
+        },
+        "shop name mapping missing; storing null in deals",
+      );
+    }
+
     await updateDeal(
       post.dealId,
       {
         title,
-        shopName,
+        shopName: normalizedShopName,
         price: normalizedPrice,
         shippingType,
         soldOut,

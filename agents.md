@@ -337,6 +337,7 @@ create table public.deal_sources (
   source_category_id bigint references public.source_categories(id) on delete set null,
   title              text not null,          -- 원본 글 제목
   thumb_url          text,                   -- 원본 썸네일(커뮤니티 제공)
+  shop_name_raw      text,                   -- 원본 쇼핑몰명(파싱 결과 그대로)
   created_at         timestamptz not null default now(),
   unique (source, source_post_id),
   unique (source, post_url)
@@ -351,7 +352,26 @@ comment on column public.deal_sources.post_url is '원본 게시글 URL';
 comment on column public.deal_sources.source_category_id is '원본 카테고리(FK: source_categories.id)';
 comment on column public.deal_sources.title is '원본 글 제목';
 comment on column public.deal_sources.thumb_url is '원본 썸네일 URL(커뮤니티 제공)';
+comment on column public.deal_sources.shop_name_raw is '원본 쇼핑몰명(정규화 전 원문)';
 comment on column public.deal_sources.created_at is '수집/등록 시각';
+
+
+-- 5-1) 쇼핑몰명 원문 → 정규화 매핑(단일 테이블)
+create table public.shop_name_mappings (
+  id               bigserial primary key,
+  source           text not null,              -- fmkorea, ruliweb 등
+  raw_name         text not null,              -- 원문 쇼핑몰명
+  normalized_name  text not null,              -- 정규화된 쇼핑몰명
+  created_at       timestamptz not null default now(),
+  unique (source, raw_name)
+);
+
+comment on table public.shop_name_mappings is '쇼핑몰명 원문(raw_name) → 정규화명(normalized_name) 매핑';
+comment on column public.shop_name_mappings.id is 'PK';
+comment on column public.shop_name_mappings.source is '소스명(fmkorea/ruliweb 등)';
+comment on column public.shop_name_mappings.raw_name is '원문 쇼핑몰명';
+comment on column public.shop_name_mappings.normalized_name is '정규화된 쇼핑몰명';
+comment on column public.shop_name_mappings.created_at is '생성 시각';
 
 
 -- 6) 딜 메트릭 히스토리(조회/추천/댓글 등)

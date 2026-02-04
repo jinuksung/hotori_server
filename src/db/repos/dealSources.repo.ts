@@ -10,6 +10,7 @@ export type DealSourceInput = {
   sourceCategoryId: number | null;
   title: string;
   thumbUrl: string | null;
+  shopNameRaw: string | null;
 };
 
 // 역할: 원본 게시글 정보를 source+source_post_id 기준으로 업서트한다.
@@ -19,15 +20,16 @@ export async function upsertSource(
 ): Promise<{ id: number; dealId: number }> {
   const result = await query<{ id: number; dealId: number }>(
     `insert into public.deal_sources
-      (deal_id, source, source_post_id, post_url, source_category_id, title, thumb_url)
+      (deal_id, source, source_post_id, post_url, source_category_id, title, thumb_url, shop_name_raw)
      values
-      ($1, $2, $3, $4, $5, $6, $7)
+      ($1, $2, $3, $4, $5, $6, $7, $8)
      on conflict (source, source_post_id) do update
        set deal_id = excluded.deal_id,
            post_url = excluded.post_url,
            source_category_id = excluded.source_category_id,
            title = excluded.title,
-           thumb_url = excluded.thumb_url
+           thumb_url = excluded.thumb_url,
+           shop_name_raw = excluded.shop_name_raw
      returning id, deal_id as "dealId"`,
     [
       input.dealId,
@@ -37,6 +39,7 @@ export async function upsertSource(
       input.sourceCategoryId,
       input.title,
       input.thumbUrl,
+      input.shopNameRaw,
     ],
     client,
   );
