@@ -4,6 +4,7 @@ import "dotenv/config";
 import pino from "pino";
 
 import { crawlFmkorea } from "./sources/fmkorea";
+import { crawlRuliweb } from "./sources/ruliweb";
 
 console.log("[BOOT] crawl.ts loaded", new Date().toISOString());
 
@@ -15,10 +16,20 @@ async function main() {
   logger.info({ job: "crawl:all" }, "crawl all job started");
   console.log("[INFO] crawl all job started");
 
-  const stats = await crawlFmkorea();
+  const fmkoreaStats = await crawlFmkorea();
+  const ruliwebStats = await crawlRuliweb();
 
-  logger.info({ job: "crawl:all", source: "fmkorea", ...stats }, "crawl all job finished");
-  console.log("[DONE]", { source: "fmkorea", ...stats });
+  logger.info(
+    { job: "crawl:all", source: "fmkorea", ...fmkoreaStats },
+    "crawl all job finished",
+  );
+  console.log("[DONE]", { source: "fmkorea", ...fmkoreaStats });
+
+  logger.info(
+    { job: "crawl:all", source: "ruliweb", ...ruliwebStats },
+    "crawl all job finished",
+  );
+  console.log("[DONE]", { source: "ruliweb", ...ruliwebStats });
 }
 
 main().catch((error) => {

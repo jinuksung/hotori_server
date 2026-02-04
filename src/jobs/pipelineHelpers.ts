@@ -1,7 +1,8 @@
 // 역할: 크롤링 파이프라인에서 사용하는 공통 변환/판별 유틸.
 
 import type { ShippingType } from "../types";
-import type { FmHotdealDetail } from "../parsers/fmkorea/parseDetail";
+// 역할: 구매 링크를 제공할 수 있는 최소 형태 타입.
+type PurchaseLinkSource = { dealUrl?: string | null };
 
 // 역할: 딜 제목에서 상점 접두/가격/배송 정보를 제거해 정규화한다.
 export function normalizeDealTitle(title: string): string {
@@ -47,7 +48,7 @@ export function detectSoldOut(
 }
 
 // 역할: 상세 파싱 결과에서 대표 구매 링크를 선택한다.
-export function selectPurchaseLink(detail: FmHotdealDetail): string | null {
+export function selectPurchaseLink(detail: PurchaseLinkSource): string | null {
   if (detail.dealUrl) {
     return detail.dealUrl;
   }

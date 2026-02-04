@@ -8,6 +8,7 @@
     "crawl": "tsx src/jobs/crawl.ts",
     "crawl:all": "tsx src/jobs/crawl.ts",
     "crawl:fmkorea": "tsx src/jobs/crawl-fmkorea.ts",
+    "crawl:ruliweb": "tsx src/jobs/crawl-ruliweb.ts",
     "affiliate": "tsx src/jobs/affiliate.ts",
     "refresh": "tsx src/jobs/refreshMetrics.ts",
     "refresh:subcategory": "tsx src/jobs/refreshSubcategory.ts",

@@ -4,7 +4,7 @@ export type Result<T> =
   | { ok: true; data: T }
   | { ok: false; error: { message: string; issues?: string[] } };
 
-export type SourceName = "fmkorea";
+export type SourceName = "fmkorea" | "ruliweb";
 
 export type ShippingType = "FREE" | "PAID" | "UNKNOWN";
 
