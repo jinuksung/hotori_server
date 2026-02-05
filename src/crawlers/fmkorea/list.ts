@@ -43,6 +43,7 @@ export async function fetchFmkoreaHotdealListHtml(
     const context = await createContext(options.headless);
     try {
       const page = await context.newPage();
+      await page.waitForTimeout(1200 + Math.random() * 1800);
       await page.goto(listUrl, {
         waitUntil: options.waitUntil ?? "domcontentloaded",
         timeout: options.timeoutMs ?? DEFAULT_TIMEOUT_MS,
