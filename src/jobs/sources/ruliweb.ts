@@ -21,12 +21,13 @@ import { createDeal, updateDeal } from "../../db/repos/deals.repo";
 import { upsertSource, findBySourcePost } from "../../db/repos/dealSources.repo";
 import { insertLink } from "../../db/repos/links.repo";
 import { insertSnapshot } from "../../db/repos/metrics.repo";
-import { countCategories } from "../../db/repos/categories.repo";
+import { countCategories, findByNames } from "../../db/repos/categories.repo";
 import { upsertSourceCategory } from "../../db/repos/sourceCategories.repo";
 import { findMappedCategoryId } from "../../db/repos/categoryMappings.repo";
 import { findNormalizedShopName } from "../../db/repos/shopNameMappings.repo";
 
 import { extractDomain, normalizeUrl } from "../../utils/url";
+import { cacheThumbnail } from "../../utils/thumbnailCache";
 import {
   detectSoldOut,
   mapShippingType,
@@ -35,6 +36,7 @@ import {
   selectPurchaseLink,
 } from "../pipelineHelpers";
 import { inferSubcategory } from "../../parsers/common/inferSubcategory";
+import { inferCategory } from "../../parsers/common/inferCategory";
 
 console.log("[BOOT] crawl ruliweb loaded", new Date().toISOString());
 
@@ -42,12 +44,18 @@ const LOG_LEVEL = process.env.LOG_LEVEL ?? "info";
 const logger = pino({ level: LOG_LEVEL });
 
 const SOURCE = "ruliweb" as const;
+const ELECTRONICS_CATEGORY_NAME = "ELECTRONICS";
+const PC_CATEGORY_NAME = "PC";
 
 const DETAIL_TIMEOUT_MS = Number(
   process.env.RULIWEB_DETAIL_TIMEOUT_MS ?? "45000",
 );
 const DETAIL_HEADLESS =
   (process.env.RULIWEB_DETAIL_HEADLESS ?? "true") === "true";
+
+function isNoticeCategoryName(name?: string | null): boolean {
+  return (name ?? "").trim() === "공지";
+}
 
 export type CrawlStats = {
   listItems: number;
@@ -131,13 +139,55 @@ export async function crawlRuliweb(): Promise<CrawlStats> {
     return createEmptyStats(0);
   }
 
+  const filteredItems = parsedList.data.items.filter(
+    (item) => !isNoticeCategoryName(item.sourceCategoryName),
+  );
+  const noticeSkipped = parsedList.data.items.length - filteredItems.length;
+  if (noticeSkipped > 0) {
+    logger.info(
+      { job: "crawl", stage: "list", noticeSkipped },
+      "excluded notice category items",
+    );
+    console.log("[INFO] notice items excluded:", noticeSkipped);
+  }
+
+  if (filteredItems.length === 0) {
+    logger.info(
+      { job: "crawl", stage: "list" },
+      "no hotdeal items left after notice filter",
+    );
+    console.log("[INFO] no hotdeal items left after notice filter");
+    return createEmptyStats(0);
+  }
+
   logger.info(
-    { job: "crawl", stage: "list", itemCount: parsedList.data.items.length },
+    { job: "crawl", stage: "list", itemCount: filteredItems.length },
     "parsed ruliweb list",
   );
-  console.log("[INFO] list items:", parsedList.data.items.length);
+  console.log("[INFO] list items:", filteredItems.length);
 
   const defaultCategoryId = requireDefaultCategoryId();
+  const categoryNameRows = await findByNames(
+    [ELECTRONICS_CATEGORY_NAME, PC_CATEGORY_NAME],
+  );
+  const electronicsCategoryId =
+    categoryNameRows.find((row) => row.name === ELECTRONICS_CATEGORY_NAME)
+      ?.id ?? null;
+  const pcCategoryId =
+    categoryNameRows.find((row) => row.name === PC_CATEGORY_NAME)?.id ?? null;
+
+  if (!electronicsCategoryId) {
+    logger.warn(
+      { job: "crawl", stage: "categories", category: ELECTRONICS_CATEGORY_NAME },
+      "electronics category missing; category override disabled",
+    );
+  }
+  if (!pcCategoryId) {
+    logger.warn(
+      { job: "crawl", stage: "categories", category: PC_CATEGORY_NAME },
+      "pc category missing; category override disabled",
+    );
+  }
   const categoryMappingMissSamples = new Map<
     string,
     CategoryMappingMissSample
@@ -156,11 +206,11 @@ export async function crawlRuliweb(): Promise<CrawlStats> {
   );
 
   const itemsBySourcePostId = new Map(
-    parsedList.data.items.map((item) => [item.sourcePostId, item]),
+    filteredItems.map((item) => [item.sourcePostId, item]),
   );
 
   // 2) DETAIL CRAWL
-  const detailTargets = parsedList.data.items.map((item) => ({
+  const detailTargets = filteredItems.map((item) => ({
     sourcePostId: item.sourcePostId,
     postUrl: item.postUrl,
   }));
@@ -206,7 +256,7 @@ export async function crawlRuliweb(): Promise<CrawlStats> {
   }));
 
   const stats: CrawlStats = {
-    listItems: parsedList.data.items.length,
+    listItems: filteredItems.length,
     detailFetched: detailResults.length,
     detailFailures: detailResult.failures.length,
     processed: 0,
@@ -252,6 +302,8 @@ export async function crawlRuliweb(): Promise<CrawlStats> {
         listItem,
         parsedDetail,
         defaultCategoryId,
+        electronicsCategoryId,
+        pcCategoryId,
         stats,
         categoryMappingMissSamples,
       );
@@ -313,6 +365,8 @@ async function persistDeal(
   listItem: RuliwebListItem,
   detail: RuliwebDetail,
   defaultCategoryId: number,
+  electronicsCategoryId: number | null,
+  pcCategoryId: number | null,
   stats: CrawlStats,
   categoryMappingMissSamples: Map<string, CategoryMappingMissSample>,
 ): Promise<void> {
@@ -323,7 +377,7 @@ async function persistDeal(
     normalizedPrice,
   );
   const soldOut = detectSoldOut(detail.title, listItem.title);
-  const thumbnailUrl = detail.ogImage ?? listItem.thumbUrl ?? null;
+  const sourceThumbnailUrl = detail.ogImage ?? listItem.thumbUrl ?? null;
   const rawShopName = detail.mall ?? null;
   const rawTitle = (detail.title ?? listItem.title).trim();
   const dealTitle = normalizeDealTitle(rawTitle);
@@ -338,6 +392,52 @@ async function persistDeal(
     listItem.sourceCategoryKey ?? detail.sourceCategoryKey ?? null;
   const sourceCategoryName =
     listItem.sourceCategoryName ?? detail.sourceCategoryName ?? null;
+
+  const existingSourceForThumb = await findBySourcePost(
+    SOURCE,
+    listItem.sourcePostId,
+  );
+  const shouldSkipThumbnailCache =
+    !!sourceThumbnailUrl &&
+    !!existingSourceForThumb?.dealThumbnailUrl &&
+    !!existingSourceForThumb?.sourceThumbUrl &&
+    existingSourceForThumb.sourceThumbUrl === sourceThumbnailUrl;
+
+  let cachedThumbnailUrl = existingSourceForThumb?.dealThumbnailUrl ?? null;
+  const cachedThumbnailResult = sourceThumbnailUrl && !shouldSkipThumbnailCache
+    ? await cacheThumbnail({
+        source: SOURCE,
+        sourcePostId: listItem.sourcePostId,
+        sourceUrl: sourceThumbnailUrl,
+      })
+    : null;
+
+  if (cachedThumbnailResult?.ok) {
+    cachedThumbnailUrl = cachedThumbnailResult.publicUrl;
+  }
+
+  if (cachedThumbnailResult && !cachedThumbnailResult.ok && sourceThumbnailUrl) {
+    logger.info(
+      {
+        job: "crawl",
+        stage: "thumbnail",
+        sourcePostId: listItem.sourcePostId,
+        reason: cachedThumbnailResult.reason,
+        status: cachedThumbnailResult.status,
+        sourceUrl: sourceThumbnailUrl,
+      },
+      "thumbnail cache skipped/failed",
+    );
+  } else if (shouldSkipThumbnailCache) {
+    logger.debug(
+      {
+        job: "crawl",
+        stage: "thumbnail",
+        sourcePostId: listItem.sourcePostId,
+      },
+      "thumbnail cache skipped (already cached)",
+    );
+  }
 
   await withTx(async (client) => {
     let sourceCategoryId: number | null = null;
@@ -393,6 +493,31 @@ async function persistDeal(
             defaultCategoryId,
           },
           "category mapping missing; using default category",
+        );
+      }
+    }
+
+    if (
+      electronicsCategoryId &&
+      pcCategoryId &&
+      resolvedCategoryId === electronicsCategoryId
+    ) {
+      const inferred = inferCategory({
+        title: dealTitle,
+        bodyText: null,
+        linkDomains: purchaseDomain ? [purchaseDomain] : null,
+      });
+      if (inferred?.categoryName === PC_CATEGORY_NAME) {
+        resolvedCategoryId = pcCategoryId;
+        logger.info(
+          {
+            job: "crawl",
+            stage: "category",
+            sourcePostId: listItem.sourcePostId,
+            inferredCategory: inferred.categoryName,
+            finalCategoryId: resolvedCategoryId,
+          },
+          "category overridden by inference",
         );
       }
     }
@@ -455,7 +580,9 @@ async function persistDeal(
           price: normalizedPrice,
           shippingType,
           soldOut,
-          thumbnailUrl,
+          thumbnailUrl: sourceThumbnailUrl
+            ? cachedThumbnailUrl ?? undefined
+            : null,
         },
         client,
       );
@@ -469,7 +596,7 @@ async function persistDeal(
           price: normalizedPrice,
           shippingType,
           soldOut,
-          thumbnailUrl,
+          thumbnailUrl: cachedThumbnailUrl ?? null,
         },
         client,
       );
@@ -484,7 +611,7 @@ async function persistDeal(
         postUrl: listItem.postUrl,
         sourceCategoryId,
         title: detail.title ?? listItem.title,
-        thumbUrl: thumbnailUrl,
+        thumbUrl: sourceThumbnailUrl,
         shopNameRaw: rawShopName,
       },
       client,

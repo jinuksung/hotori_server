@@ -68,11 +68,16 @@ function normalizeText(text: string): string {
   return text.replace(/\s+/g, " ").trim();
 }
 
+// 역할: 카테고리 텍스트에서 대괄호를 제거하고 정리한다.
+function normalizeCategoryName(text: string): string {
+  return normalizeText(text).replace(/[\[\]]/g, "").trim();
+}
+
 // 역할: 리스트 아이템에서 카테고리 정보를 추출한다.
 function parseCategoryInfo($item: cheerio.Cheerio<AnyNode>) {
   const categoryCell = $item.find("td.divsn").first();
   const categoryLink = categoryCell.find("a").first();
-  const sourceCategoryName = normalizeText(categoryCell.text()) || null;
+  const sourceCategoryName = normalizeCategoryName(categoryCell.text()) || null;
   const sourceCategoryKey = extractCategoryKey(categoryLink.attr("href"));
   return { sourceCategoryKey, sourceCategoryName };
 }

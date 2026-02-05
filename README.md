@@ -19,6 +19,12 @@ Required:
 Optional:
 - `FMKOREA_BASE_URL`
 - `RULIWEB_BASE_URL`
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `SUPABASE_STORAGE_BUCKET`
+
+Notes:
+- Supabase Storage envs are required only if you want thumbnail caching.
 
 ## GitHub Actions
 

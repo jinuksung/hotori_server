@@ -3,12 +3,13 @@
 import pino from "pino";
 import { fetchFmkoreaDetailHtmls } from "../crawlers/fmkorea/detail";
 import { parseFmHotdealDetail, type FmHotdealDetail } from "../parsers/fmkorea/parseDetail";
-import { listRecentPosts } from "../db/repos/dealSources.repo";
+import { findBySourcePost, listRecentPosts } from "../db/repos/dealSources.repo";
 import { updateDeal } from "../db/repos/deals.repo";
 import { insertSnapshot } from "../db/repos/metrics.repo";
 import { appendRaw } from "../db/repos/rawDeals.repo";
 import { withTx } from "../db/client";
 import { findNormalizedShopName } from "../db/repos/shopNameMappings.repo";
+import { cacheThumbnail } from "../utils/thumbnailCache";
 import {
   detectSoldOut,
   mapShippingType,
@@ -140,9 +141,57 @@ async function persistMetrics(
     normalizedPrice,
   );
   const soldOut = detectSoldOut(detail.title);
-  const thumbnailUrl = detail.ogImage ?? null;
+  const sourceThumbnailUrl = detail.ogImage ?? null;
   const rawShopName = detail.mall ?? null;
   const title = detail.title ? normalizeDealTitle(detail.title) : undefined;
+
+  const existingSourceForThumb = await findBySourcePost(
+    SOURCE,
+    post.sourcePostId,
+  );
+  const shouldSkipThumbnailCache =
+    !!sourceThumbnailUrl &&
+    !!existingSourceForThumb?.dealThumbnailUrl &&
+    !!existingSourceForThumb?.sourceThumbUrl &&
+    existingSourceForThumb.sourceThumbUrl === sourceThumbnailUrl;
+
+  let cachedThumbnailUrl = existingSourceForThumb?.dealThumbnailUrl ?? null;
+  const cachedThumbnailResult = sourceThumbnailUrl && !shouldSkipThumbnailCache
+    ? await cacheThumbnail({
+        source: SOURCE,
+        sourcePostId: post.sourcePostId,
+        sourceUrl: sourceThumbnailUrl,
+      })
+    : null;
+
+  if (cachedThumbnailResult?.ok) {
+    cachedThumbnailUrl = cachedThumbnailResult.publicUrl;
+  }
+
+  if (cachedThumbnailResult && !cachedThumbnailResult.ok && sourceThumbnailUrl) {
+    logger.info(
+      {
+        job: "refresh",
+        stage: "thumbnail",
+        sourcePostId: post.sourcePostId,
+        dealId: post.dealId,
+        reason: cachedThumbnailResult.reason,
+        status: cachedThumbnailResult.status,
+        sourceUrl: sourceThumbnailUrl,
+      },
+      "thumbnail cache skipped/failed",
+    );
+  } else if (shouldSkipThumbnailCache) {
+    logger.debug(
+      {
+        job: "refresh",
+        stage: "thumbnail",
+        sourcePostId: post.sourcePostId,
+        dealId: post.dealId,
+      },
+      "thumbnail cache skipped (already cached)",
+    );
+  }
 
   await withTx(async (client) => {
     const normalizedShopName = rawShopName
@@ -184,7 +233,7 @@ async function persistMetrics(
         price: normalizedPrice,
         shippingType,
         soldOut,
-        thumbnailUrl,
+        thumbnailUrl: sourceThumbnailUrl ? cachedThumbnailUrl ?? undefined : null,
       },
       client
     );

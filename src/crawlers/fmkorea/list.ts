@@ -68,11 +68,12 @@ export async function fetchFmkoreaHotdealListHtml(
 
 // 역할: Playwright 브라우저 컨텍스트를 생성한다.
 async function createContext(headless?: boolean): Promise<BrowserContext> {
-  const browser = await chromium.launch({ headless: headless ?? true });
+  const browser = await chromium.launch({ headless: true });
   return browser.newContext({
     userAgent: USER_AGENT,
     locale: "ko-KR",
     viewport: DEFAULT_VIEWPORT,
+    timezoneId: "Asia/Seoul",
   });
 }
 

@@ -78,13 +78,14 @@ export async function fetchFmkoreaDetailHtmls(
   const waitUntil: LoadState = options.waitUntil ?? "domcontentloaded";
   const contentSelector = options.contentSelector ?? DEFAULT_CONTENT_SELECTOR;
 
-  const browser = await chromium.launch({ headless });
+  const browser = await chromium.launch({ headless: false });
   let context: BrowserContext | null = null;
 
   try {
     context = await browser.newContext({
       userAgent: USER_AGENT,
       locale: "ko-KR",
+      timezoneId: "Asia/Seoul",
       viewport: DEFAULT_VIEWPORT,
     });
 

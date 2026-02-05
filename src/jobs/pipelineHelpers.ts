@@ -10,12 +10,29 @@ export function normalizeDealTitle(title: string): string {
   return stripTrailingPriceShipping(stripped);
 }
 
-// 역할: 가격 문자열에서 숫자만 추출해 number로 변환한다.
+// 역할: 가격 문자열에서 숫자를 추출해 number로 변환한다(범위 표기는 최솟값 사용).
 export function parsePrice(text?: string | null): number | null {
   if (!text) return null;
-  const digits = text.replace(/[^0-9.]/g, "");
-  if (!digits) return null;
-  const value = Number(digits);
+  const normalized = text.replace(/,/g, "");
+  const rangeMatch = normalized.match(
+    /(\d+(?:\.\d+)?)[\s]*(?:~|〜|～|–|—|-)[\s]*(\d+(?:\.\d+)?)/,
+  );
+  if (rangeMatch) {
+    const first = Number(rangeMatch[1]);
+    const second = Number(rangeMatch[2]);
+    const value = Number.isFinite(first) && Number.isFinite(second)
+      ? Math.min(first, second)
+      : Number.isFinite(first)
+        ? first
+        : Number.isFinite(second)
+          ? second
+          : NaN;
+    return Number.isFinite(value) ? value : null;
+  }
+
+  const numberMatch = normalized.match(/(\d+(?:\.\d+)?)/);
+  if (!numberMatch) return null;
+  const value = Number(numberMatch[1]);
   return Number.isFinite(value) ? value : null;
 }
 
@@ -82,13 +99,15 @@ function looksLikePrice(inner: string): boolean {
   const hasDigit = /\d/.test(inner);
   const hasCurrency =
     inner.includes("원") ||
+    inner.includes("윈") ||
     inner.includes("만원") ||
     inner.includes("달러") ||
     inner.includes("usd") ||
     inner.includes("krw") ||
     inner.includes("₩") ||
     inner.includes("$");
-  return hasDigit && hasCurrency;
+  if (hasDigit && hasCurrency) return true;
+  return looksLikePriceShippingSlash(inner);
 }
 
 // 역할: 괄호 내부 텍스트가 배송 표현인지 판단한다.
@@ -102,6 +121,19 @@ function looksLikeShipping(inner: string): boolean {
     inner.includes("직배") ||
     inner.includes("shipping")
   );
+}
+
+// 역할: "가격/배송비" 형태인지 판단한다.
+function looksLikePriceShippingSlash(inner: string): boolean {
+  const match = inner.match(
+    /(\d[\d,]*(?:\.\d+)?)(?:\s*(?:원|윈|달러|usd|krw|₩|\$))?\s*[/／]\s*(\d[\d,]*(?:\.\d+)?|무료|무배|free|0)(?:\s*원)?/i,
+  );
+  if (!match) return false;
+  const priceToken = match[1];
+  const priceDigits = priceToken.replace(/[^0-9]/g, "");
+  if (!priceDigits) return false;
+  if (!priceToken.includes(",") && priceDigits.length < 3) return false;
+  return true;
 }
 
 // 역할: 배송 문구에서 배송 타입을 추정한다.

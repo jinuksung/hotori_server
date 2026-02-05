@@ -53,11 +53,28 @@ export async function findBySourcePost(
   source: string,
   sourcePostId: string,
   client?: DbClient,
-): Promise<{ id: number; dealId: number; postUrl: string } | null> {
-  const result = await query<{ id: number; dealId: number; postUrl: string }>(
-    `select id, deal_id as "dealId", post_url as "postUrl"
-     from public.deal_sources
-     where source = $1 and source_post_id = $2`,
+): Promise<{
+  id: number;
+  dealId: number;
+  postUrl: string;
+  sourceThumbUrl: string | null;
+  dealThumbnailUrl: string | null;
+} | null> {
+  const result = await query<{
+    id: number;
+    dealId: number;
+    postUrl: string;
+    sourceThumbUrl: string | null;
+    dealThumbnailUrl: string | null;
+  }>(
+    `select ds.id,
+            ds.deal_id as "dealId",
+            ds.post_url as "postUrl",
+            ds.thumb_url as "sourceThumbUrl",
+            d.thumbnail_url as "dealThumbnailUrl"
+     from public.deal_sources ds
+     join public.deals d on d.id = ds.deal_id
+     where ds.source = $1 and ds.source_post_id = $2`,
     [source, sourcePostId],
     client,
   );

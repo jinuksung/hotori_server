@@ -13,6 +13,9 @@
     "refresh": "tsx src/jobs/refreshMetrics.ts",
     "refresh:subcategory": "tsx src/jobs/refreshSubcategory.ts",
     "debug:detail": "tsx scripts/checkDetail.ts",
+    "seed:ruliweb-categories": "tsx scripts/seedRuliwebCategoryMappings.ts",
+    "seed:shop-names": "tsx scripts/seedShopNameMappings.ts",
+    "seed:categories": "tsx scripts/seedCategories.ts",
     "typecheck": "tsc --noEmit",
     "test:parsers": "tsx tests/parsers/fmkorea.smoke.ts"
   },
@@ -21,6 +24,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@supabase/supabase-js": "^2.94.1",
     "bottleneck": "^2.19.5",
     "cheerio": "^1.2.0",
     "dotenv": "^17.2.3",

@@ -34,6 +34,22 @@ export async function countCategories(
   return Number.isFinite(value) ? value : 0;
 }
 
+// 역할: 카테고리명 목록으로 여러 카테고리를 조회한다.
+export async function findByNames(
+  names: string[],
+  client?: DbClient,
+): Promise<CategoryRow[]> {
+  if (names.length === 0) return [];
+  const result = await query<CategoryRow>(
+    `select id, name
+     from public.categories
+     where name = any($1)`,
+    [names],
+    client,
+  );
+  return result.rows;
+}
+
 // 역할: getByName의 별칭(호환성 유지용).
 export async function findByName(
   name: string,
