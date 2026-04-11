@@ -13,7 +13,7 @@ const DEFAULT_PARAMS: Record<string, string | number> = {
   sort: process.env.ALIEXPRESS_HOT_SORT ?? "LAST_VOLUME_DESC",
   delivery_days: process.env.ALIEXPRESS_HOT_DELIVERY_DAYS ?? "7",
   page_size: Number(process.env.ALIEXPRESS_HOT_PAGE_SIZE ?? "50"),
-  tracking_id: process.env.ALIEXPRESS_HOT_TRACKING_ID ?? "",
+  tracking_id: "default",
   fields:
     process.env.ALIEXPRESS_HOT_FIELDS ??
     "product_id,product_title,product_detail_url,product_main_image_url,original_price,sale_price,discount_rate,commission_rate,commission_amount,lastest_volume,evaluate_rate,shop_id,shop_name,category_id",
