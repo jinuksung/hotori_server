@@ -124,7 +124,7 @@ export async function createAliExpressAffiliateLink(
   const payloadParams: Record<string, string> = {
     source_values: originalUrl,
     tracking_id: "default",
-    promotion_link_type: "0",
+    promotion_link_type: "2",
   };
 
   if (subId) {
