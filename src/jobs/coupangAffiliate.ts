@@ -4,7 +4,10 @@ import {
   insertLink,
   listPendingNonAffiliateLinksByDomain,
 } from "../db/repos/links.repo";
-import { findResolvedUrlBySourceUrl } from "../db/repos/linkResolutions.repo";
+import {
+  findResolvedUrlBySourceUrl,
+  upsertPendingLinkResolution,
+} from "../db/repos/linkResolutions.repo";
 import { extractDomain, normalizeUrl } from "../utils/url";
 import {
   createCoupangDeepLinks,
@@ -46,6 +49,23 @@ async function main() {
       const inputUrlRaw = resolvedUrl ?? candidate.url;
       const inputUrl = inputUrlRaw.replace(/&amp;/g, "&");
       if (!isCoupangUrl(inputUrl)) {
+        stats.skipped += 1;
+        continue;
+      }
+
+      if (inputUrl.includes("/vp/products/1?")) {
+        await withTx((client) =>
+          upsertPendingLinkResolution(
+            {
+              sourceUrl: inputUrl,
+              sourceName: "coupang_affiliate",
+              dealId: candidate.dealId,
+              sourceType: "coupang_redirect",
+              note: "manual review: productId=1 redirect",
+            },
+            client,
+          ),
+        );
         stats.skipped += 1;
         continue;
       }
