@@ -55,10 +55,7 @@ function pickString(value: unknown): string | null {
 }
 
 function formatTimestamp(date = new Date()): string {
-  const pad = (value: number) => String(value).padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(
-    date.getHours(),
-  )}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+  return String(date.getTime());
 }
 
 function parseSystemParams(): Record<string, string> {
@@ -143,7 +140,7 @@ function findProductArray(payload: AliHotApiResponse): unknown[] {
 }
 
 export async function fetchAliHotProducts(params: Record<string, string | number>): Promise<AliHotProduct[]> {
-  const method = (process.env.ALIEXPRESS_HOT_API_METHOD ?? "GET").toUpperCase();
+  const method = (process.env.ALIEXPRESS_HOT_API_METHOD ?? "POST").toUpperCase();
   const url = new URL(API_ENDPOINT);
 
   const signedParams = signParams(
@@ -163,10 +160,10 @@ export async function fetchAliHotProducts(params: Record<string, string | number
   const response = await fetch(url.toString(), {
     method,
     headers: {
-      "content-type": "application/json",
+      "content-type": "application/x-www-form-urlencoded;charset=utf-8",
       accept: "application/json",
     },
-    body: method === "GET" ? undefined : JSON.stringify(signedParams),
+    body: method === "GET" ? undefined : new URLSearchParams(signedParams).toString(),
   });
 
   const payload = (await response.json()) as AliHotApiResponse;
