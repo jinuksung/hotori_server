@@ -43,7 +43,8 @@ async function main() {
       const resolvedUrl = await withTx((client) =>
         findResolvedUrlBySourceUrl(candidate.url, client),
       );
-      const inputUrl = resolvedUrl ?? candidate.url;
+      const inputUrlRaw = resolvedUrl ?? candidate.url;
+      const inputUrl = inputUrlRaw.replace(/&amp;/g, "&");
       if (!isCoupangUrl(inputUrl)) {
         stats.skipped += 1;
         continue;
