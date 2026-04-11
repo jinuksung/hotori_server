@@ -44,18 +44,35 @@ function pickString(value: unknown): string | null {
   return null;
 }
 
+function formatTimestamp(date = new Date()): string {
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(
+    date.getHours(),
+  )}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
+
 function parseSystemParams(): Record<string, string> {
   const raw = process.env.ALIEXPRESS_SYSTEM_PARAMS_JSON?.trim();
-  if (!raw) return {};
-  try {
-    const parsed = JSON.parse(raw) as Record<string, string>;
-    return Object.fromEntries(
-      Object.entries(parsed).filter(([, value]) => value !== undefined && value !== null),
-    );
-  } catch (error) {
-    logger.warn({ error }, "failed to parse ALIEXPRESS_SYSTEM_PARAMS_JSON");
-    return {};
+  const baseParams: Record<string, string> = {};
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw) as Record<string, string>;
+      Object.assign(
+        baseParams,
+        Object.fromEntries(
+          Object.entries(parsed).filter(([, value]) => value !== undefined && value !== null),
+        ),
+      );
+    } catch (error) {
+      logger.warn({ error }, "failed to parse ALIEXPRESS_SYSTEM_PARAMS_JSON");
+    }
   }
+
+  if (!baseParams.timestamp) {
+    baseParams.timestamp = formatTimestamp();
+  }
+
+  return baseParams;
 }
 
 function buildSignature(params: Record<string, string>, appSecret: string, mode: SignatureMode, apiName?: string) {
