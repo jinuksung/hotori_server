@@ -25,8 +25,10 @@ import { countCategories, findByNames } from "../../db/repos/categories.repo";
 import { upsertSourceCategory } from "../../db/repos/sourceCategories.repo";
 import { findMappedCategoryId } from "../../db/repos/categoryMappings.repo";
 import { findNormalizedShopName } from "../../db/repos/shopNameMappings.repo";
+import { upsertPendingLinkResolution } from "../../db/repos/linkResolutions.repo";
 
 import { extractDomain, normalizeUrl } from "../../utils/url";
+import { shouldTrackForManualResolution } from "../../utils/linkResolution";
 import { cacheThumbnail } from "../../utils/thumbnailCache";
 import {
   detectSoldOut,
@@ -37,6 +39,7 @@ import {
 } from "../pipelineHelpers";
 import { inferSubcategory } from "../../parsers/common/inferSubcategory";
 import { inferCategory } from "../../parsers/common/inferCategory";
+import { evaluateAndUpsertPublishQueue } from "../publishHelpers";
 
 console.log("[BOOT] crawl ruliweb loaded", new Date().toISOString());
 
@@ -62,6 +65,8 @@ export type CrawlStats = {
   detailFetched: number;
   detailFailures: number;
   processed: number;
+  inserted: number;
+  updated: number;
   skipped: number;
   parserFailures: number;
   persistFailures: number;
@@ -88,6 +93,8 @@ function createEmptyStats(listItems: number): CrawlStats {
     detailFetched: 0,
     detailFailures: 0,
     processed: 0,
+    inserted: 0,
+    updated: 0,
     skipped: 0,
     parserFailures: 0,
     persistFailures: 0,
@@ -260,6 +267,8 @@ export async function crawlRuliweb(): Promise<CrawlStats> {
     detailFetched: detailResults.length,
     detailFailures: detailResult.failures.length,
     processed: 0,
+    inserted: 0,
+    updated: 0,
     skipped: 0,
     parserFailures: 0,
     persistFailures: 0,
@@ -586,6 +595,7 @@ async function persistDeal(
         },
         client,
       );
+      stats.updated += 1;
     } else {
       const created = await createDeal(
         {
@@ -601,6 +611,7 @@ async function persistDeal(
         client,
       );
       dealId = created.id;
+      stats.inserted += 1;
     }
 
     await upsertSource(
@@ -709,8 +720,22 @@ async function persistDeal(
           },
           client,
         );
+
+        if (shouldTrackForManualResolution(normalizedPurchaseUrl)) {
+          await upsertPendingLinkResolution(
+            {
+              sourceUrl: normalizedPurchaseUrl,
+              sourceName: SOURCE,
+              dealId,
+              note: dealTitle,
+            },
+            client,
+          );
+        }
       }
     }
+
+    await evaluateAndUpsertPublishQueue(dealId, client);
   });
 }
 
