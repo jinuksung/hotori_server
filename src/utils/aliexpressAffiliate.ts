@@ -148,7 +148,13 @@ export async function createAliExpressAffiliateLink(
 
   const payload = (await response.json()) as AliExpressAffiliateApiResponse;
   if (!response.ok) {
-    throw new Error(`AliExpress affiliate api http ${response.status}`);
+    throw new Error(
+      `AliExpress affiliate api http ${response.status}: ${JSON.stringify(payload)}`,
+    );
+  }
+
+  if ((payload as any)?.error_response) {
+    throw new Error(`AliExpress affiliate api error: ${JSON.stringify(payload)}`);
   }
 
   const affiliateUrl =
