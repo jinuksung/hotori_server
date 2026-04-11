@@ -20,6 +20,7 @@ type AliExpressAffiliateApiResponse = {
 
 const SIGNATURE_MODE = "business" as const;
 const API_PATH = "aliexpress.affiliate.link.generate";
+const API_ENDPOINT = "https://api-sg.aliexpress.com/sync";
 const SYSTEM_PARAMS: Record<string, string> = {
   method: "aliexpress.affiliate.link.generate",
   format: "json",
@@ -120,12 +121,6 @@ export async function createAliExpressAffiliateLink(
     return originalUrl;
   }
 
-  const endpoint = process.env.ALIEXPRESS_AFFILIATE_API_URL?.trim();
-
-  if (!endpoint) {
-    throw new Error("ALIEXPRESS_AFFILIATE_API_URL is required");
-  }
-
   const payloadParams: Record<string, string> = {
     source_values: originalUrl,
     tracking_id: process.env.ALIEXPRESS_TRACKING_ID ?? "",
@@ -138,13 +133,17 @@ export async function createAliExpressAffiliateLink(
 
   const signedParams = signParams(payloadParams);
 
-  const response = await fetch(endpoint, {
-    method: "POST",
+  const url = new URL(API_ENDPOINT);
+  url.searchParams.set("method", API_PATH);
+  for (const [key, value] of Object.entries(signedParams)) {
+    url.searchParams.set(key, value);
+  }
+
+  const response = await fetch(url.toString(), {
+    method: "GET",
     headers: {
-      "content-type": "application/json",
       accept: "application/json",
     },
-    body: JSON.stringify(signedParams),
   });
 
   const payload = (await response.json()) as AliExpressAffiliateApiResponse;
