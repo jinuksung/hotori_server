@@ -13,6 +13,8 @@ const SUPABASE_STORAGE_BUCKET =
 const DEFAULT_USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122 Safari/537.36";
 const SIGNED_URL_EXPIRES_IN = 60 * 60 * 24 * 30; // 30 days
+const THUMBNAIL_CACHE_ENABLED =
+  (process.env.THUMBNAIL_CACHE_ENABLED ?? "true") === "true";
 
 let cachedClient: SupabaseClient | null = null;
 
@@ -43,6 +45,10 @@ function getSupabaseClient(): SupabaseClient | null {
 export async function cacheThumbnail(
   input: ThumbnailCacheInput,
 ): Promise<ThumbnailCacheResult> {
+  if (!THUMBNAIL_CACHE_ENABLED) {
+    return { ok: false, reason: "thumbnail_cache_disabled" };
+  }
+
   if (!input.sourceUrl) {
     return { ok: false, reason: "source_url_missing" };
   }

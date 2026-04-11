@@ -22,9 +22,11 @@ Optional:
 - `SUPABASE_URL`
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `SUPABASE_STORAGE_BUCKET`
+- `THUMBNAIL_CACHE_ENABLED` (`false`면 썸네일 캐시 비활성화)
 
 Notes:
 - Supabase Storage envs are required only if you want thumbnail caching.
+- Neon 등으로 DB만 먼저 옮길 때는 `THUMBNAIL_CACHE_ENABLED=false`로 두면 썸네일 캐시 로직을 건너뜁니다.
 
 ## GitHub Actions
 
