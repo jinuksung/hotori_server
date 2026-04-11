@@ -168,7 +168,9 @@ export async function createAliExpressAffiliateLink(
     payload.result?.affiliateUrl ??
     payload.result?.trackingUrl ??
     payload.result?.promotionUrl ??
-    payload.result?.promotion_link;
+    payload.result?.promotion_link ??
+    (payload as any)?.aliexpress_affiliate_link_generate_response?.resp_result?.result?.promotion_links?.promotion_link?.[0]?.promotion_link ??
+    (payload as any)?.aliexpress_affiliate_link_generate_response?.resp_result?.result?.promotion_links?.promotion_link?.[0]?.promotionLink;
 
   if (!affiliateUrl) {
     throw new Error(
