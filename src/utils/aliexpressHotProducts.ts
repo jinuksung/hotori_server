@@ -25,6 +25,15 @@ type AliHotApiResponse = Record<string, unknown>;
 
 type SignatureMode = "business" | "system";
 
+const SIGNATURE_MODE: SignatureMode = "business";
+const API_PATH = "aliexpress.affiliate.hotproduct.query";
+const SYSTEM_PARAMS: Record<string, string> = {
+  method: "aliexpress.affiliate.hotproduct.query",
+  format: "json",
+  v: "2.0",
+  sign_method: "sha256",
+};
+
 function toNumber(value: unknown): number | null {
   if (value === null || value === undefined) return null;
   if (typeof value === "number" && Number.isFinite(value)) return value;
@@ -52,21 +61,7 @@ function formatTimestamp(date = new Date()): string {
 }
 
 function parseSystemParams(): Record<string, string> {
-  const raw = process.env.ALIEXPRESS_SYSTEM_PARAMS_JSON?.trim();
-  const baseParams: Record<string, string> = {};
-  if (raw) {
-    try {
-      const parsed = JSON.parse(raw) as Record<string, string>;
-      Object.assign(
-        baseParams,
-        Object.fromEntries(
-          Object.entries(parsed).filter(([, value]) => value !== undefined && value !== null),
-        ),
-      );
-    } catch (error) {
-      logger.warn({ error }, "failed to parse ALIEXPRESS_SYSTEM_PARAMS_JSON");
-    }
-  }
+  const baseParams: Record<string, string> = { ...SYSTEM_PARAMS };
 
   if (!baseParams.timestamp) {
     baseParams.timestamp = formatTimestamp();
@@ -104,9 +99,6 @@ function buildSignature(params: Record<string, string>, appSecret: string, mode:
 function signParams(params: Record<string, string>): Record<string, string> {
   const appKey = process.env.ALIEXPRESS_APP_KEY?.trim();
   const appSecret = process.env.ALIEXPRESS_APP_SECRET?.trim();
-  const apiPath = process.env.ALIEXPRESS_API_PATH?.trim();
-  const apiName = process.env.ALIEXPRESS_API_NAME?.trim();
-  const mode = (process.env.ALIEXPRESS_SIGNATURE_MODE ?? "business") as SignatureMode;
 
   if (!appKey || !appSecret) {
     throw new Error("ALIEXPRESS_APP_KEY and ALIEXPRESS_APP_SECRET are required");
@@ -120,14 +112,11 @@ function signParams(params: Record<string, string>): Record<string, string> {
     ...params,
   };
 
-  if (mode === "business") {
-    if (!apiPath) {
-      throw new Error("ALIEXPRESS_API_PATH is required for business interface signing");
-    }
-    merged.api_path = apiPath;
+  if (SIGNATURE_MODE === "business") {
+    merged.api_path = API_PATH;
   }
 
-  const signature = buildSignature(merged, appSecret, mode, apiName ?? undefined);
+  const signature = buildSignature(merged, appSecret, SIGNATURE_MODE);
   return { ...merged, sign: signature };
 }
 
