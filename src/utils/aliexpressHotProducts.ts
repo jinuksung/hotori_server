@@ -27,6 +27,7 @@ type SignatureMode = "business" | "system";
 
 const SIGNATURE_MODE: SignatureMode = "business";
 const API_PATH = "aliexpress.affiliate.hotproduct.query";
+const API_ENDPOINT = "https://api-sg.aliexpress.com/sync";
 const SYSTEM_PARAMS: Record<string, string> = {
   method: "aliexpress.affiliate.hotproduct.query",
   format: "json",
@@ -142,13 +143,8 @@ function findProductArray(payload: AliHotApiResponse): unknown[] {
 }
 
 export async function fetchAliHotProducts(params: Record<string, string | number>): Promise<AliHotProduct[]> {
-  const endpoint = process.env.ALIEXPRESS_HOT_API_URL?.trim();
-  if (!endpoint) {
-    throw new Error("ALIEXPRESS_HOT_API_URL is required");
-  }
-
   const method = (process.env.ALIEXPRESS_HOT_API_METHOD ?? "GET").toUpperCase();
-  const url = new URL(endpoint);
+  const url = new URL(API_ENDPOINT);
 
   const signedParams = signParams(
     Object.fromEntries(
