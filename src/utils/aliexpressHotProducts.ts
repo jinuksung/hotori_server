@@ -173,7 +173,7 @@ export async function fetchAliHotProducts(params: Record<string, string | number
 
   const items = findProductArray(payload);
   if (items.length === 0) {
-    logger.warn({ job: "aliexpress-hot", params }, "no products found in response");
+    logger.warn({ job: "aliexpress-hot", params, payload }, "no products found in response");
   }
 
   return items
