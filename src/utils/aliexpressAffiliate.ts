@@ -171,7 +171,9 @@ export async function createAliExpressAffiliateLink(
     payload.result?.promotion_link;
 
   if (!affiliateUrl) {
-    throw new Error("AliExpress affiliate api response missing affiliate url");
+    throw new Error(
+      `AliExpress affiliate api response missing affiliate url: ${JSON.stringify(payload)}`,
+    );
   }
 
   return affiliateUrl;
