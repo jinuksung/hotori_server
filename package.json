@@ -17,6 +17,7 @@
     "aliexpress:hot": "tsx src/jobs/aliexpressHotProducts.ts",
     "publish:telegram-hotdeals": "tsx scripts/publishTelegramHotdeals.ts",
     "publish:telegram-approved": "tsx scripts/publishTelegramApproved.ts",
+    "publish:worker": "tsx src/workers/publishTelegram.ts",
     "refresh": "tsx src/jobs/refreshMetrics.ts",
     "refresh:subcategory": "tsx src/jobs/refreshSubcategory.ts",
     "debug:detail": "tsx scripts/checkDetail.ts",
