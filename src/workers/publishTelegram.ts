@@ -21,14 +21,20 @@ type ClaimedQueueRow = {
 const logger = pino({ level: process.env.LOG_LEVEL ?? "info" });
 
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN?.trim();
-const TELEGRAM_CHAT_ID = "-1003540417361";
-const TELEGRAM_TOPIC_ID = "218";
+const TELEGRAM_CHAT_ID = process.env.TELEGRAM_TARGET_CHAT_ID?.trim();
+const TOPIC_HOME = process.env.TELEGRAM_TOPIC_HOME?.trim();
+const TOPIC_FOOD = process.env.TELEGRAM_TOPIC_FOOD?.trim();
+const TOPIC_DIGITAL = process.env.TELEGRAM_TOPIC_DIGITAL?.trim();
 const CLAIM_LIMIT = Number(process.env.PUBLISH_WORKER_BATCH_LIMIT ?? 5);
 const LOOP = process.env.PUBLISH_WORKER_LOOP === "true";
 const LOOP_INTERVAL_MS = Number(process.env.PUBLISH_WORKER_INTERVAL_MS ?? 30_000);
 
-if (!BOT_TOKEN) {
-  throw new Error("Missing TELEGRAM_BOT_TOKEN");
+if (!BOT_TOKEN || !TELEGRAM_CHAT_ID) {
+  throw new Error("Missing TELEGRAM_BOT_TOKEN or TELEGRAM_TARGET_CHAT_ID");
+}
+
+if (!TOPIC_HOME || !TOPIC_FOOD || !TOPIC_DIGITAL) {
+  throw new Error("Missing TELEGRAM_TOPIC_HOME/FOOD/DIGITAL");
 }
 
 async function claimApprovedRows(limit: number): Promise<ClaimedQueueRow[]> {
@@ -109,7 +115,7 @@ function formatError(error: unknown): string {
   }
 }
 
-async function sendTelegramMessage(text: string): Promise<void> {
+async function sendTelegramMessage(text: string, topicId: string): Promise<void> {
   const response = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
     method: "POST",
     headers: {
@@ -117,7 +123,7 @@ async function sendTelegramMessage(text: string): Promise<void> {
     },
     body: new URLSearchParams({
       chat_id: TELEGRAM_CHAT_ID,
-      message_thread_id: TELEGRAM_TOPIC_ID,
+      message_thread_id: topicId,
       text,
     }),
   });
@@ -149,8 +155,26 @@ async function processBatch(): Promise<{ processed: number; sent: number; failed
       link,
     });
 
+    const category = (row.categoryName ?? "").toUpperCase();
+    const topicId =
+      category === "HOME"
+        ? TOPIC_HOME
+        : category === "FOOD"
+          ? TOPIC_FOOD
+          : category === "DIGITAL" || category === "ELECTRONICS"
+            ? TOPIC_DIGITAL
+            : undefined;
+
+    if (!topicId) {
+      const message = `unknown category or topic mapping: ${row.categoryName ?? ""}`;
+      await markQueueSendFailed(row.id, message);
+      failed += 1;
+      logger.error({ queueId: row.id, dealId: row.dealId, error: message }, "telegram send failed");
+      continue;
+    }
+
     try {
-      await sendTelegramMessage(text);
+      await sendTelegramMessage(text, topicId);
       await markQueueSent(row.id);
       sent += 1;
     } catch (error) {
@@ -176,7 +200,11 @@ async function main(): Promise<void> {
       batchLimit: CLAIM_LIMIT,
       channel: TELEGRAM_HOTDEAL_CHANNEL,
       chatId: TELEGRAM_CHAT_ID,
-      topicId: TELEGRAM_TOPIC_ID,
+      topics: {
+        HOME: TOPIC_HOME,
+        FOOD: TOPIC_FOOD,
+        DIGITAL: TOPIC_DIGITAL,
+      },
     },
     "telegram publish worker started",
   );
