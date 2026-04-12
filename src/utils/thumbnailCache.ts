@@ -3,12 +3,20 @@
 import "dotenv/config";
 import { createHash } from "crypto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 
 const SUPABASE_URL = process.env.SUPABASE_URL?.trim() ?? "";
 const SUPABASE_SERVICE_ROLE_KEY =
   process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() ?? "";
 const SUPABASE_STORAGE_BUCKET =
   process.env.SUPABASE_STORAGE_BUCKET?.trim() ?? "";
+
+const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID?.trim() ?? "";
+const R2_BUCKET = process.env.R2_BUCKET?.trim() ?? "";
+const R2_ENDPOINT = process.env.R2_ENDPOINT?.trim() ?? "";
+const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID?.trim() ?? "";
+const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY?.trim() ?? "";
+const R2_PUBLIC_BASE_URL = process.env.R2_PUBLIC_BASE_URL?.trim() ?? "";
 
 const DEFAULT_USER_AGENT =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122 Safari/537.36";
@@ -17,6 +25,7 @@ const THUMBNAIL_CACHE_ENABLED =
   (process.env.THUMBNAIL_CACHE_ENABLED ?? "true") === "true";
 
 let cachedClient: SupabaseClient | null = null;
+let cachedR2Client: S3Client | null = null;
 
 export type ThumbnailCacheResult =
   | { ok: true; publicUrl: string; path: string }
@@ -41,6 +50,29 @@ function getSupabaseClient(): SupabaseClient | null {
   return cachedClient;
 }
 
+// 역할: R2(S3) 클라이언트를 반환하거나 설정이 없으면 null을 반환한다.
+function getR2Client(): S3Client | null {
+  if (!R2_BUCKET || !R2_ACCESS_KEY_ID || !R2_SECRET_ACCESS_KEY) {
+    return null;
+  }
+  const endpoint = R2_ENDPOINT || (R2_ACCOUNT_ID
+    ? `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`
+    : "");
+  if (!endpoint) return null;
+
+  if (!cachedR2Client) {
+    cachedR2Client = new S3Client({
+      region: "auto",
+      endpoint,
+      credentials: {
+        accessKeyId: R2_ACCESS_KEY_ID,
+        secretAccessKey: R2_SECRET_ACCESS_KEY,
+      },
+    });
+  }
+  return cachedR2Client;
+}
+
 // 역할: 썸네일 URL을 캐시하고 접근 가능한 URL(서명/공개)을 반환한다.
 export async function cacheThumbnail(
   input: ThumbnailCacheInput,
@@ -53,9 +85,10 @@ export async function cacheThumbnail(
     return { ok: false, reason: "source_url_missing" };
   }
 
-  const supabase = getSupabaseClient();
-  if (!supabase) {
-    return { ok: false, reason: "supabase_not_configured" };
+  const r2 = getR2Client();
+  const supabase = r2 ? null : getSupabaseClient();
+  if (!r2 && !supabase) {
+    return { ok: false, reason: "storage_not_configured" };
   }
 
   const referer = resolveReferer(input.sourceUrl);
@@ -99,7 +132,28 @@ export async function cacheThumbnail(
     `${hash}.${ext}`,
   ].join("/");
 
-  const { error } = await supabase.storage
+  if (r2) {
+    await r2.send(
+      new PutObjectCommand({
+        Bucket: R2_BUCKET,
+        Key: path,
+        Body: buffer,
+        ContentType: contentType || "image/jpeg",
+      }),
+    );
+
+    const endpoint = R2_ENDPOINT || (R2_ACCOUNT_ID
+      ? `https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com`
+      : "");
+    const baseUrl = R2_PUBLIC_BASE_URL || (endpoint ? `${endpoint}/${R2_BUCKET}` : "");
+    if (!baseUrl) {
+      return { ok: false, reason: "r2_public_base_url_missing" };
+    }
+
+    return { ok: true, publicUrl: `${baseUrl}/${path}`, path };
+  }
+
+  const { error } = await supabase!.storage
     .from(SUPABASE_STORAGE_BUCKET)
     .upload(path, buffer, {
       upsert: true,
@@ -110,7 +164,7 @@ export async function cacheThumbnail(
     return { ok: false, reason: `upload_failed:${error.message}` };
   }
 
-  const { data, error: signedError } = await supabase.storage
+  const { data, error: signedError } = await supabase!.storage
     .from(SUPABASE_STORAGE_BUCKET)
     .createSignedUrl(path, SIGNED_URL_EXPIRES_IN);
 
