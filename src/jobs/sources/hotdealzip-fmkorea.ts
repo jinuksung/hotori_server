@@ -177,7 +177,6 @@ async function persistDeal(
   const normalizedPrice = parsePrice(item.priceText);
   const shippingType = mapShippingType(item.shippingText, item.title, normalizedPrice);
   const soldOut = detectSoldOut(item.title, item.raw.status);
-  const sourceThumbnailUrl = item.thumbUrl;
   const rawShopName = item.shopText;
   const dealTitle = normalizeDealTitle(item.title);
 
@@ -186,6 +185,7 @@ async function persistDeal(
     : { ok: false as const, error: { message: "seo_url missing" } };
   const detailParsed = detailHtmlResult.ok ? parseHotdealzipDetail(detailHtmlResult.data) : null;
   const purchaseUrl = detailParsed?.buyUrl ?? null;
+  const sourceThumbnailUrl = item.thumbUrl ?? detailParsed?.imageUrl ?? null;
   const normalizedPurchaseUrl = purchaseUrl ? (normalizeUrl(purchaseUrl) ?? purchaseUrl) : null;
   const purchaseDomain = normalizedPurchaseUrl ? extractDomain(normalizedPurchaseUrl) : null;
 
