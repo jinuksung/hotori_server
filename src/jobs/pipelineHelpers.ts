@@ -186,6 +186,31 @@ function classifyShippingFromTitle(
   return null;
 }
 
+export function inferCategoryByKeywords(title?: string | null, bodyText?: string | null): string | null {
+  const text = `${title ?? ""} ${bodyText ?? ""}`.toLowerCase();
+  if (!text.trim()) return null;
+
+  const hasAny = (keywords: string[]) => keywords.some((k) => text.includes(k));
+
+  if (hasAny(["물티슈", "휴지", "티슈", "세제", "섬유유연제", "수세미", "주방", "팬", "냄비", "베개", "이불", "청소", "쓰레기통", "수건"])) {
+    return "HOME";
+  }
+  if (hasAny(["식용유", "삼다수", "커피", "간식", "라면", "식품", "음료", "막걸리", "김치", "과자", "아이스", "우유"])) {
+    return "FOOD";
+  }
+  if (hasAny(["에어서큘레이터", "에어써큘레이터", "전자", "가전", "에스프레소", "청소기", "선풍기", "공기청정"])) {
+    return "ELECTRONICS";
+  }
+  if (hasAny(["다운", "코트", "자켓", "의류", "패딩", "셔츠", "바지", "치마", "신발", "목걸이", "반지"])) {
+    return "FASHION";
+  }
+  if (hasAny(["구독", "이용권", "티빙", "웨이브", "넷플릭스", "멤버십", "쿠폰", "기프티콘", "상품권", "교환권", "포인트"])) {
+    return "DIGITAL";
+  }
+
+  return null;
+}
+
 // 역할: 제목 끝의 괄호 그룹을 뒤에서부터 추출한다.
 function extractTrailingParenGroups(title: string): string[] {
   let rest = title.trim();

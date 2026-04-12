@@ -36,6 +36,7 @@ import {
   normalizeDealTitle,
   parsePrice,
   selectPurchaseLink,
+  inferCategoryByKeywords,
 } from "../pipelineHelpers";
 import { inferSubcategory } from "../../parsers/common/inferSubcategory";
 import { inferCategory } from "../../parsers/common/inferCategory";
@@ -175,13 +176,17 @@ export async function crawlRuliweb(): Promise<CrawlStats> {
 
   const defaultCategoryId = requireDefaultCategoryId();
   const categoryNameRows = await findByNames(
-    [ELECTRONICS_CATEGORY_NAME, PC_CATEGORY_NAME],
+    [ELECTRONICS_CATEGORY_NAME, PC_CATEGORY_NAME, "FOOD", "HOME", "DIGITAL", "FASHION"],
   );
   const electronicsCategoryId =
     categoryNameRows.find((row) => row.name === ELECTRONICS_CATEGORY_NAME)
       ?.id ?? null;
   const pcCategoryId =
     categoryNameRows.find((row) => row.name === PC_CATEGORY_NAME)?.id ?? null;
+  const foodCategoryId = categoryNameRows.find((row) => row.name === "FOOD")?.id ?? null;
+  const homeCategoryId = categoryNameRows.find((row) => row.name === "HOME")?.id ?? null;
+  const digitalCategoryId = categoryNameRows.find((row) => row.name === "DIGITAL")?.id ?? null;
+  const fashionCategoryId = categoryNameRows.find((row) => row.name === "FASHION")?.id ?? null;
 
   if (!electronicsCategoryId) {
     logger.warn(
@@ -503,6 +508,17 @@ async function persistDeal(
           },
           "category mapping missing; using default category",
         );
+      }
+    }
+
+    if (resolvedCategoryId === defaultCategoryId) {
+      const inferred = inferCategoryByKeywords(dealTitle, null);
+      if (inferred === "FOOD" && foodCategoryId) resolvedCategoryId = foodCategoryId;
+      if (inferred === "HOME" && homeCategoryId) resolvedCategoryId = homeCategoryId;
+      if (inferred === "DIGITAL" && digitalCategoryId) resolvedCategoryId = digitalCategoryId;
+      if (inferred === "FASHION" && fashionCategoryId) resolvedCategoryId = fashionCategoryId;
+      if (inferred === "ELECTRONICS" && electronicsCategoryId) {
+        resolvedCategoryId = electronicsCategoryId;
       }
     }
 
