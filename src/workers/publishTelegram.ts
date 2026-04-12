@@ -16,6 +16,8 @@ type ClaimedQueueRow = {
   price: string | null;
   shopName: string | null;
   categoryName: string | null;
+  thumbnailUrl: string | null;
+  purchaseUrl: string | null;
 };
 
 const logger = pino({ level: process.env.LOG_LEVEL ?? "info" });
@@ -66,10 +68,19 @@ async function claimApprovedRows(limit: number): Promise<ClaimedQueueRow[]> {
               d.title,
               d.price::text as price,
               d.shop_name as "shopName",
-              cat.name as "categoryName"
+              d.thumbnail_url as "thumbnailUrl",
+              cat.name as "categoryName",
+              link.url as "purchaseUrl"
        from claimed c
        join public.deals d on d.id = c."dealId"
        left join public.categories cat on cat.id = d.category_id
+       left join lateral (
+         select dl.url
+         from public.deal_links dl
+         where dl.deal_id = d.id
+         order by dl.is_affiliate desc, dl.id asc
+         limit 1
+       ) link on true
        order by c.id asc`,
       [TELEGRAM_HOTDEAL_CHANNEL, limit],
       client,
@@ -115,6 +126,14 @@ function formatError(error: unknown): string {
   }
 }
 
+function formatPrice(input: string | null): string | null {
+  if (!input) return null;
+  const normalized = input.replace(/,/g, "");
+  const value = Number(normalized);
+  if (!Number.isFinite(value)) return input;
+  return Math.round(value).toString();
+}
+
 async function sendTelegramMessage(text: string, topicId: string): Promise<void> {
   const response = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
     method: "POST",
@@ -136,6 +155,32 @@ async function sendTelegramMessage(text: string, topicId: string): Promise<void>
   }
 }
 
+async function sendTelegramPhoto(payload: {
+  photo: string;
+  caption: string;
+  topicId: string;
+}): Promise<void> {
+  const response = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendPhoto`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/x-www-form-urlencoded",
+    },
+    body: new URLSearchParams({
+      chat_id: TELEGRAM_CHAT_ID,
+      message_thread_id: payload.topicId,
+      photo: payload.photo,
+      caption: payload.caption,
+    }),
+  });
+
+  const data = (await response.json()) as { ok?: boolean; description?: string };
+  if (!response.ok || data.ok !== true) {
+    throw new Error(
+      `telegram sendPhoto failed: http=${response.status}, body=${JSON.stringify(data)}`,
+    );
+  }
+}
+
 async function processBatch(): Promise<{ processed: number; sent: number; failed: number }> {
   const rows = await claimApprovedRows(CLAIM_LIMIT);
   if (rows.length === 0) {
@@ -146,10 +191,10 @@ async function processBatch(): Promise<{ processed: number; sent: number; failed
   let failed = 0;
 
   for (const row of rows) {
-    const link = extractQueueLinkFromPayload(row.payloadJson);
+    const link = row.purchaseUrl ?? extractQueueLinkFromPayload(row.payloadJson);
     const text = buildTelegramMessage({
       title: row.title,
-      price: row.price,
+      price: formatPrice(row.price),
       shopName: row.shopName,
       categoryName: row.categoryName,
       link,
@@ -174,7 +219,15 @@ async function processBatch(): Promise<{ processed: number; sent: number; failed
     }
 
     try {
-      await sendTelegramMessage(text, topicId);
+      if (row.thumbnailUrl) {
+        await sendTelegramPhoto({
+          photo: row.thumbnailUrl,
+          caption: text,
+          topicId,
+        });
+      } else {
+        await sendTelegramMessage(text, topicId);
+      }
       await markQueueSent(row.id);
       sent += 1;
     } catch (error) {
