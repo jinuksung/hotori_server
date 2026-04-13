@@ -122,17 +122,51 @@ function findProductArray(payload: AliHotApiResponse): unknown[] {
   const candidates = [
     payload?.data,
     payload?.result,
+    payload?.aliexpress_affiliate_hotproduct_query_response,
     payload,
   ];
 
   for (const node of candidates) {
     if (!node || typeof node !== "object") continue;
     const typed = node as Record<string, unknown>;
-    const direct = typed.products ?? typed.product ?? typed.items ?? typed.item;
+    const direct =
+      typed.products ??
+      typed.product ??
+      typed.items ??
+      typed.item ??
+      typed.resp_result ??
+      typed.result ??
+      typed.data;
+
     if (Array.isArray(direct)) return direct;
     if (direct && typeof direct === "object") {
-      const nested = (direct as Record<string, unknown>).product ?? (direct as Record<string, unknown>).items;
+      const nestedTyped = direct as Record<string, unknown>;
+      const nested =
+        nestedTyped.product ??
+        nestedTyped.products ??
+        nestedTyped.items ??
+        nestedTyped.item ??
+        nestedTyped.resp_result ??
+        nestedTyped.result ??
+        nestedTyped.data;
       if (Array.isArray(nested)) return nested;
+      if (nested && typeof nested === "object") {
+        const deep = nested as Record<string, unknown>;
+        const deepArray =
+          deep.products ??
+          deep.product ??
+          deep.items ??
+          deep.item ??
+          deep.resp_result ??
+          deep.result ??
+          deep.data;
+        if (Array.isArray(deepArray)) return deepArray;
+        if (deepArray && typeof deepArray === "object") {
+          const deeper = deepArray as Record<string, unknown>;
+          const finalArray = deeper.products ?? deeper.product ?? deeper.items ?? deeper.item;
+          if (Array.isArray(finalArray)) return finalArray;
+        }
+      }
     }
   }
 
@@ -213,8 +247,8 @@ export async function fetchAliHotProducts(params: Record<string, string | number
         productTitle,
         productUrl,
         imageUrl,
-        price: toNumber(item.original_price ?? item.price),
-        salePrice: toNumber(item.sale_price ?? item.salePrice),
+        price: toNumber(item.target_original_price ?? item.original_price ?? item.price),
+        salePrice: toNumber(item.target_sale_price ?? item.sale_price ?? item.salePrice),
         discountRate: toNumber(item.discount_rate ?? item.discountRate),
         commissionRate: toNumber(item.commission_rate ?? item.commissionRate),
         commissionAmount: toNumber(item.commission_amount ?? item.commissionAmount),
