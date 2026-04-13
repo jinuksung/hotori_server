@@ -135,6 +135,16 @@ async function run() {
     } catch (error) {
       logger.error({ job: "aliexpress-hot", error }, "affiliate backfill failed after hot fetch");
     }
+
+    try {
+      const { stdout, stderr } = await execFileAsync("npx", ["tsx", "scripts/syncAliHotToDeals.ts"], {
+        cwd: process.cwd(),
+        env: process.env,
+      });
+      logger.info({ job: "aliexpress-hot", stdout, stderr }, "deals sync executed after affiliate backfill");
+    } catch (error) {
+      logger.error({ job: "aliexpress-hot", error }, "deals sync failed after affiliate backfill");
+    }
   }
 
   logger.info({ job: "aliexpress-hot", total }, "job finished");
