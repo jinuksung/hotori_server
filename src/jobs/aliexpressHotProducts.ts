@@ -5,6 +5,7 @@ import { fetchAliHotProducts } from "../utils/aliexpressHotProducts";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { pickTopKeywordsPerCategory, TARGET_NAVER_CATEGORY_CIDS } from "../utils/shoppingKeywordSelection";
+import { mapAliCategoryToInternal } from "../utils/aliexpressCategoryMapping";
 
 const logger = pino({ level: process.env.LOG_LEVEL ?? "info" });
 
@@ -51,8 +52,16 @@ async function resolveDynamicKeywords() {
 
 const TOTAL_PAGES = Number(process.env.ALIEXPRESS_HOT_PAGES ?? "1");
 
+async function loadCategoryIdMap() {
+  const { rows } = await query<{ id: number; name: string }>(
+    `select id, name from public.categories`,
+  );
+  return new Map(rows.map((row) => [row.name, row.id]));
+}
+
 async function run() {
   const keywords = await resolveDynamicKeywords();
+  const categoryIdMap = await loadCategoryIdMap();
   logger.info({ job: "aliexpress-hot", pages: TOTAL_PAGES, keywords }, "job started");
 
   const snapshotAt = new Date().toISOString();
@@ -65,30 +74,48 @@ async function run() {
       page_no: page,
     };
 
+    logger.info({ job: "aliexpress-hot", page, requestParams: params }, "request params");
     const products = await fetchAliHotProducts(params);
     total += products.length;
 
-    const rows: AliHotRow[] = products.map((product) => ({
-      snapshotAt,
-      productId: product.productId,
-      productTitle: product.productTitle,
-      productUrl: product.productUrl,
-      affiliateUrl: null,
-      imageUrl: product.imageUrl,
-      price: product.price,
-      salePrice: product.salePrice,
-      discountRate: product.discountRate,
-      commissionRate: product.commissionRate,
-      commissionAmount: product.commissionAmount,
-      ordersCount: product.ordersCount,
-      rating: product.rating,
-      sourceCategoryId: product.sourceCategoryId,
-      mappedCategoryId: null,
-      mappingConfidence: null,
-      shopId: product.shopId,
-      shopName: product.shopName,
-      rawPayload: product.raw,
-    }));
+    const rows: AliHotRow[] = products.map((product) => {
+      const raw = (product.raw ?? {}) as Record<string, unknown>;
+      const firstLevelCategoryName = typeof raw.first_level_category_name === "string" ? raw.first_level_category_name : null;
+      const secondLevelCategoryName = typeof raw.second_level_category_name === "string" ? raw.second_level_category_name : null;
+      const mapped = mapAliCategoryToInternal({
+        title: product.productTitle,
+        firstLevelCategoryName,
+        secondLevelCategoryName,
+      });
+
+      return {
+        snapshotAt,
+        productId: product.productId,
+        productTitle: product.productTitle,
+        productUrl: product.productUrl,
+        affiliateUrl: null,
+        imageUrl: product.imageUrl,
+        price: product.price,
+        salePrice: product.salePrice,
+        discountRate: product.discountRate,
+        commissionRate: product.commissionRate,
+        commissionAmount: product.commissionAmount,
+        ordersCount: product.ordersCount,
+        rating: product.rating,
+        sourceCategoryId:
+          product.sourceCategoryId ??
+          (typeof raw.second_level_category_id === "number" || typeof raw.second_level_category_id === "string"
+            ? String(raw.second_level_category_id)
+            : typeof raw.first_level_category_id === "number" || typeof raw.first_level_category_id === "string"
+              ? String(raw.first_level_category_id)
+              : null),
+        mappedCategoryId: mapped.categoryName ? String(categoryIdMap.get(mapped.categoryName) ?? "") || null : null,
+        mappingConfidence: mapped.confidence,
+        shopId: product.shopId,
+        shopName: product.shopName,
+        rawPayload: product.raw,
+      };
+    });
 
     await withTx(async (client) => {
       await insertAliHotHistory(rows, client);
