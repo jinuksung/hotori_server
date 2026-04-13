@@ -11,6 +11,7 @@ export type DealInput = {
   shippingType: string;
   soldOut: boolean;
   thumbnailUrl: string | null;
+  dealGroupKey?: string | null;
 };
 
 // 역할: 정규화된 딜을 생성한다.
@@ -20,9 +21,9 @@ export async function createDeal(
 ): Promise<{ id: number }> {
   const result = await query<{ id: number }>(
     `insert into public.deals
-      (category_id, title, shop_name, subcategory, price, shipping_type, sold_out, thumbnail_url)
+      (category_id, title, shop_name, subcategory, price, shipping_type, sold_out, thumbnail_url, deal_group_key)
      values
-      ($1, $2, $3, $4, $5, $6, $7, $8)
+      ($1, $2, $3, $4, $5, $6, $7, $8, $9)
      returning id`,
     [
       input.categoryId,
@@ -33,6 +34,7 @@ export async function createDeal(
       input.shippingType,
       input.soldOut,
       input.thumbnailUrl,
+      input.dealGroupKey ?? null,
     ],
     client
   );
@@ -82,6 +84,10 @@ export async function updateDeal(
   if (patch.thumbnailUrl !== undefined) {
     setClauses.push(`thumbnail_url = $${idx++}`);
     values.push(patch.thumbnailUrl);
+  }
+  if (patch.dealGroupKey !== undefined) {
+    setClauses.push(`deal_group_key = $${idx++}`);
+    values.push(patch.dealGroupKey);
   }
 
   if (setClauses.length === 0) {

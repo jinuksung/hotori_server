@@ -38,6 +38,7 @@ import {
 import { inferSubcategory } from "../../parsers/common/inferSubcategory";
 import { inferCategory } from "../../parsers/common/inferCategory";
 import { evaluateAndUpsertPublishQueue } from "../publishHelpers";
+import { buildDealGroupKey } from "../../utils/dealGrouping";
 
 console.log("[BOOT] crawl ppomppu loaded", new Date().toISOString());
 
@@ -334,6 +335,11 @@ async function persistDeal(
       detail.summaryText ?? null,
       purchaseDomain ? [purchaseDomain] : null,
     );
+    const dealGroupKey = buildDealGroupKey({
+      categoryName: inferredCategoryName,
+      title: dealTitle,
+      representativeUrl: normalizedPurchaseUrl,
+    });
 
     const existingSource = await findBySourcePost(SOURCE, listItem.sourcePostId, client);
     let dealId = existingSource?.dealId ?? null;
@@ -349,6 +355,7 @@ async function persistDeal(
           shippingType,
           soldOut,
           thumbnailUrl: cachedThumbnailUrl ?? null,
+          dealGroupKey,
         },
         client,
       );
@@ -365,7 +372,8 @@ async function persistDeal(
           price: normalizedPrice,
           shippingType,
           soldOut,
-          thumbnailUrl: sourceThumbnailUrl ? cachedThumbnailUrl ?? undefined : null,
+          thumbnailUrl: cachedThumbnailUrl ?? existingSource?.dealThumbnailUrl ?? null,
+          dealGroupKey,
         },
         client,
       );
