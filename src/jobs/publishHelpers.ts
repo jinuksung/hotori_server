@@ -111,6 +111,8 @@ type DealPublishCandidate = {
   confidence: number | null;
   benchmarkSampleSize: number | null;
   benchmarkP25: number | null;
+  dealGroupKey: string | null;
+  duplicateSentDealId: number | null;
 };
 
 function isBlockedCommunityUrl(value: string | null | undefined): boolean {
@@ -155,6 +157,20 @@ function decidePublish(row: DealPublishCandidate): PublishDecision {
     return { status: "blocked", score: 0, reason: "missing_purchase_url" };
   }
 
+  if (row.duplicateSentDealId) {
+    return {
+      status: "blocked",
+      score: 0,
+      reason: `duplicate_recent_sent:${row.duplicateSentDealId}`,
+      payloadJson: {
+        representativeUrl,
+        retryCount: 0,
+        duplicateSentDealId: row.duplicateSentDealId,
+        dealGroupKey: row.dealGroupKey,
+      },
+    };
+  }
+
   const autoApproveFoodCheap = process.env.AUTO_APPROVE_FOOD_CHEAP === "true";
   const isCheapFoodCandidate =
     autoApproveFoodCheap
@@ -181,6 +197,7 @@ function decidePublish(row: DealPublishCandidate): PublishDecision {
       unitPrice: row.unitPrice,
       benchmarkSampleSize: row.benchmarkSampleSize,
       benchmarkP25: row.benchmarkP25,
+      dealGroupKey: row.dealGroupKey,
     },
   };
 }
@@ -209,7 +226,9 @@ async function getDealPublishCandidate(
             m.unit_price as "unitPrice",
             m.confidence,
             b.sample_size as "benchmarkSampleSize",
-            b.p25 as "benchmarkP25"
+            b.p25 as "benchmarkP25",
+            d.deal_group_key as "dealGroupKey",
+            recent_sent.deal_id as "duplicateSentDealId"
      from public.deals d
      left join public.categories c on c.id = d.category_id
      left join lateral (
@@ -232,9 +251,22 @@ async function getDealPublishCandidate(
      left join public.deal_food_unit_metrics m on m.deal_id = d.id
      left join public.food_group_price_benchmarks b
        on b.food_group = m.food_group and b.unit_basis = m.unit_basis
+     left join lateral (
+       select q2.deal_id
+       from public.deal_publish_queue q2
+       join public.deals d2 on d2.id = q2.deal_id
+       where q2.channel = $2
+         and q2.status = 'sent'
+         and q2.sent_at >= now() - interval '72 hours'
+         and d2.deal_group_key is not null
+         and d2.deal_group_key = d.deal_group_key
+         and d2.id <> d.id
+       order by q2.sent_at desc
+       limit 1
+     ) recent_sent on true
      where d.id = $1
        and d.created_at >= now() - interval '12 hours'`,
-    [dealId],
+    [dealId, TELEGRAM_HOTDEAL_CHANNEL],
     client,
   );
 
