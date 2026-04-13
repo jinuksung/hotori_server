@@ -6,6 +6,7 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { pickTopKeywordsPerCategory, TARGET_NAVER_CATEGORY_CIDS } from "../utils/shoppingKeywordSelection";
 import { mapAliCategoryToInternal } from "../utils/aliexpressCategoryMapping";
+import { cacheThumbnail } from "../utils/thumbnailCache";
 
 const logger = pino({ level: process.env.LOG_LEVEL ?? "info" });
 
@@ -78,7 +79,8 @@ async function run() {
     const products = await fetchAliHotProducts(params);
     total += products.length;
 
-    const rows: AliHotRow[] = products.map((product) => {
+    const rows: AliHotRow[] = [];
+    for (const product of products) {
       const raw = (product.raw ?? {}) as Record<string, unknown>;
       const firstLevelCategoryName = typeof raw.first_level_category_name === "string" ? raw.first_level_category_name : null;
       const secondLevelCategoryName = typeof raw.second_level_category_name === "string" ? raw.second_level_category_name : null;
@@ -87,14 +89,21 @@ async function run() {
         firstLevelCategoryName,
         secondLevelCategoryName,
       });
+      const cachedThumbnail = product.imageUrl
+        ? await cacheThumbnail({
+            source: "aliexpress_hot",
+            sourcePostId: product.productId,
+            sourceUrl: product.imageUrl,
+          })
+        : null;
 
-      return {
+      rows.push({
         snapshotAt,
         productId: product.productId,
         productTitle: product.productTitle,
         productUrl: product.productUrl,
         affiliateUrl: null,
-        imageUrl: product.imageUrl,
+        imageUrl: cachedThumbnail?.ok ? cachedThumbnail.publicUrl : product.imageUrl,
         price: product.price,
         salePrice: product.salePrice,
         discountRate: product.discountRate,
@@ -114,8 +123,8 @@ async function run() {
         shopId: product.shopId,
         shopName: product.shopName,
         rawPayload: product.raw,
-      };
-    });
+      });
+    }
 
     await withTx(async (client) => {
       await insertAliHotHistory(rows, client);
