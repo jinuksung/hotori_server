@@ -32,6 +32,7 @@ import {
   inferCategoryByKeywords,
 } from "../pipelineHelpers";
 import { evaluateAndUpsertPublishQueue } from "../publishHelpers";
+import { buildDealGroupKey } from "../../utils/dealGrouping";
 
 const logger = pino({ level: process.env.LOG_LEVEL ?? "info" });
 const SOURCE = "hotdealzip_fmkorea" as const;
@@ -274,6 +275,11 @@ async function persistDeal(
     }
 
     const subcategory = inferSubcategory(resolvedCategoryId, dealTitle, null, null);
+    const dealGroupKey = buildDealGroupKey({
+      categoryName: inferredCategoryName,
+      title: dealTitle,
+      representativeUrl: normalizedPurchaseUrl,
+    });
     const existingSource = await findBySourcePost(SOURCE, item.sourcePostId, client);
     let dealId = existingSource?.dealId ?? null;
 
@@ -288,6 +294,7 @@ async function persistDeal(
           shippingType,
           soldOut,
           thumbnailUrl: cachedThumbnailUrl ?? null,
+          dealGroupKey,
         },
         client,
       );
@@ -304,7 +311,8 @@ async function persistDeal(
           price: normalizedPrice,
           shippingType,
           soldOut,
-          thumbnailUrl: sourceThumbnailUrl ? cachedThumbnailUrl ?? undefined : null,
+          thumbnailUrl: cachedThumbnailUrl ?? existingSource?.dealThumbnailUrl ?? null,
+          dealGroupKey,
         },
         client,
       );

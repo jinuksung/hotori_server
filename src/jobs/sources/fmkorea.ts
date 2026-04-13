@@ -37,6 +37,7 @@ import {
 } from "../pipelineHelpers";
 import { inferSubcategory } from "../../parsers/common/inferSubcategory";
 import { inferCategory } from "../../parsers/common/inferCategory";
+import { buildDealGroupKey } from "../../utils/dealGrouping";
 
 console.log("[BOOT] crawl fmkorea loaded", new Date().toISOString());
 
@@ -624,6 +625,11 @@ async function persistDeal(
       detail.summaryText,
       purchaseDomain ? [purchaseDomain] : null
     );
+    const dealGroupKey = buildDealGroupKey({
+      categoryName: resolvedCategoryName,
+      title: dealTitle,
+      representativeUrl: normalizedPurchaseUrl,
+    });
 
     const existingSource = await findBySourcePost(
       SOURCE,
@@ -643,6 +649,7 @@ async function persistDeal(
           shippingType,
           soldOut,
           thumbnailUrl: cachedThumbnailUrl ?? null,
+          dealGroupKey,
         },
         client,
       );
@@ -658,9 +665,8 @@ async function persistDeal(
           price: normalizedPrice,
           shippingType,
           soldOut,
-          thumbnailUrl: sourceThumbnailUrl
-            ? cachedThumbnailUrl ?? undefined
-            : null,
+          thumbnailUrl: cachedThumbnailUrl ?? existingSource?.dealThumbnailUrl ?? null,
+          dealGroupKey,
         },
         client,
       );

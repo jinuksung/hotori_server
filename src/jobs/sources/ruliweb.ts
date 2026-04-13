@@ -41,6 +41,7 @@ import {
 import { inferSubcategory } from "../../parsers/common/inferSubcategory";
 import { inferCategory } from "../../parsers/common/inferCategory";
 import { evaluateAndUpsertPublishQueue } from "../publishHelpers";
+import { buildDealGroupKey } from "../../utils/dealGrouping";
 
 console.log("[BOOT] crawl ruliweb loaded", new Date().toISOString());
 
@@ -585,6 +586,11 @@ async function persistDeal(
       null,
       purchaseDomain ? [purchaseDomain] : null,
     );
+    const dealGroupKey = buildDealGroupKey({
+      categoryName: resolvedCategoryName,
+      title: dealTitle,
+      representativeUrl: normalizedPurchaseUrl,
+    });
 
     const existing = await findBySourcePost(
       SOURCE,
@@ -605,9 +611,8 @@ async function persistDeal(
           price: normalizedPrice,
           shippingType,
           soldOut,
-          thumbnailUrl: sourceThumbnailUrl
-            ? cachedThumbnailUrl ?? undefined
-            : null,
+          thumbnailUrl: cachedThumbnailUrl ?? existingSource?.dealThumbnailUrl ?? null,
+          dealGroupKey,
         },
         client,
       );
@@ -623,6 +628,7 @@ async function persistDeal(
           shippingType,
           soldOut,
           thumbnailUrl: cachedThumbnailUrl ?? null,
+          dealGroupKey,
         },
         client,
       );
