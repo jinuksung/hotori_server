@@ -24,7 +24,7 @@ const SOURCE = "aliexpress_hot";
 const MIN_SALE_PRICE = Number(process.env.ALIEXPRESS_HOT_MIN_SALE_PRICE ?? "10000");
 
 function pickRepresentativeUrl(row: AliRow): string | null {
-  return row.affiliate_url ?? row.product_url ?? null;
+  return row.affiliate_url;
 }
 
 function pickPrice(row: AliRow): number | null {
@@ -55,7 +55,7 @@ async function main() {
      where is_active = true
        and coalesce(sale_price, price) >= $1
        and mapped_category_id is not null
-       and coalesce(affiliate_url, product_url) is not null
+       and affiliate_url is not null
      order by last_seen_at desc`,
     [MIN_SALE_PRICE],
   );
