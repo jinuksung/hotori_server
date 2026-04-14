@@ -25,6 +25,15 @@ type Stats = {
   failed: number;
 };
 
+function normalizeCoupangCandidateUrl(rawUrl: string): string {
+  const htmlDecoded = rawUrl.replace(/&amp;/g, "&").trim();
+  try {
+    return decodeURIComponent(htmlDecoded);
+  } catch {
+    return htmlDecoded;
+  }
+}
+
 async function main() {
   logger.info({ job: "coupang-affiliate", batchSize: BATCH_SIZE }, "job started");
 
@@ -42,14 +51,25 @@ async function main() {
   };
 
   for (const candidate of coupangCandidates) {
+    let resolvedUrl: string | null = null;
     try {
-      const resolvedUrl = await withTx((client) =>
+      resolvedUrl = await withTx((client) =>
         findResolvedUrlBySourceUrl(candidate.url, client),
       );
       const inputUrlRaw = resolvedUrl ?? candidate.url;
-      const inputUrl = inputUrlRaw.replace(/&amp;/g, "&");
+      const inputUrl = normalizeCoupangCandidateUrl(inputUrlRaw);
       if (!isCoupangUrl(inputUrl)) {
         stats.skipped += 1;
+        logger.warn(
+          {
+            job: "coupang-affiliate",
+            dealId: candidate.dealId,
+            originalUrl: candidate.url,
+            resolvedUrl,
+            normalizedInputUrl: inputUrl,
+          },
+          "skipping non-coupang url after normalization",
+        );
         continue;
       }
 
@@ -112,14 +132,21 @@ async function main() {
           ? { message: error.message, stack: error.stack }
           : { error };
       logger.error(
-        { job: "coupang-affiliate", ...errPayload, dealId: candidate.dealId, url: candidate.url },
+        {
+          job: "coupang-affiliate",
+          ...errPayload,
+          dealId: candidate.dealId,
+          url: candidate.url,
+          normalizedUrl: normalizeCoupangCandidateUrl(resolvedUrl ?? candidate.url),
+          resolvedUrl,
+        },
         "failed to create coupang affiliate link",
       );
     }
   }
 
   logger.info({ job: "coupang-affiliate", ...stats }, "job finished");
-  console.log("[DONE]", stats);
+  console.log(`[쿠팡 제휴링크 배치] 후보 ${stats.candidates}건, 변환 ${stats.converted}건, 실패 ${stats.failed}건, 스킵 ${stats.skipped}건`);
 }
 
 main().catch((error) => {

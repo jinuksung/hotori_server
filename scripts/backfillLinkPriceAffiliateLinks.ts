@@ -42,7 +42,7 @@ async function main() {
     }
   }
 
-  console.log(JSON.stringify({ scanned, updated, failed }, null, 2));
+  console.log(`[링크프라이스 제휴링크 배치] 후보 ${scanned}건, 변환 ${updated}건, 실패 ${failed}건, 스킵 0건`);
 }
 
 main().catch((error) => {
