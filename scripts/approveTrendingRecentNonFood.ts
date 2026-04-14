@@ -6,6 +6,7 @@ const LOOKBACK_MINUTES = Number(process.env.TREND_APPROVE_LOOKBACK_MINUTES ?? "9
 const MIN_AGE_MINUTES = Number(process.env.TREND_APPROVE_MIN_AGE_MINUTES ?? "20");
 const MAX_APPROVALS = Number(process.env.TREND_APPROVE_MAX_PER_RUN ?? "1");
 const MIN_SCORE = Number(process.env.TREND_APPROVE_MIN_SCORE ?? "3");
+const MIN_SNAPSHOTS = Number(process.env.TREND_APPROVE_MIN_SNAPSHOTS ?? "3");
 
 type CandidateRow = {
   dealId: number;
@@ -39,7 +40,7 @@ async function main() {
               max(case when rn = 2 then coalesce(comments, 0) end) as prev_comments,
               max(case when rn = 1 then coalesce(votes, 0) end) as latest_votes,
               max(case when rn = 2 then coalesce(votes, 0) end) as prev_votes,
-              count(*) filter (where rn <= 2) as snapshots
+              count(*) as snapshots
        from recent_metrics
        group by deal_id
      )
@@ -62,10 +63,10 @@ async function main() {
        and c.name in ('HOME', 'DIGITAL', 'ELECTRONICS', 'FASHION')
        and d.created_at >= now() - make_interval(mins => $1::int)
        and d.created_at <= now() - make_interval(mins => $2::int)
-       and p.snapshots >= 2
+       and p.snapshots >= $4
      order by score desc, q.created_at asc
      limit $3`,
-    [LOOKBACK_MINUTES, MIN_AGE_MINUTES, MAX_APPROVALS],
+    [LOOKBACK_MINUTES, MIN_AGE_MINUTES, MAX_APPROVALS, MIN_SNAPSHOTS],
   );
 
   const approved: CandidateRow[] = [];
@@ -115,6 +116,7 @@ async function main() {
       minAgeMinutes: MIN_AGE_MINUTES,
       maxApprovals: MAX_APPROVALS,
       minScore: MIN_SCORE,
+      minSnapshots: MIN_SNAPSHOTS,
     },
   }, null, 2));
 }
