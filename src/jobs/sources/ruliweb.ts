@@ -319,6 +319,10 @@ export async function crawlRuliweb(): Promise<CrawlStats> {
         defaultCategoryId,
         electronicsCategoryId,
         pcCategoryId,
+        foodCategoryId,
+        homeCategoryId,
+        digitalCategoryId,
+        fashionCategoryId,
         stats,
         categoryMappingMissSamples,
       );
@@ -382,6 +386,10 @@ async function persistDeal(
   defaultCategoryId: number,
   electronicsCategoryId: number | null,
   pcCategoryId: number | null,
+  foodCategoryId: number | null,
+  homeCategoryId: number | null,
+  digitalCategoryId: number | null,
+  fashionCategoryId: number | null,
   stats: CrawlStats,
   categoryMappingMissSamples: Map<string, CategoryMappingMissSample>,
 ): Promise<void> {
