@@ -13,6 +13,7 @@ type LinkPriceDeepLinkResponse = {
 };
 
 const LINKPRICE_API_BASE = process.env.LINKPRICE_API_BASE?.trim() || "https://api.linkprice.com";
+const LINKPRICE_API_PATH = process.env.LINKPRICE_API_PATH?.trim() || "/affiliateLink";
 
 export function isLinkPriceSupportedUrl(url: string): boolean {
   try {
@@ -31,7 +32,7 @@ export async function createLinkPriceDeepLink(url: string): Promise<string> {
     throw new Error("LINKPRICE_AID is required");
   }
 
-  const endpoint = new URL("/deep_link", LINKPRICE_API_BASE);
+  const endpoint = new URL(LINKPRICE_API_PATH, LINKPRICE_API_BASE);
   endpoint.searchParams.set("aid", aid);
   endpoint.searchParams.set("murl", url);
   if (uid) endpoint.searchParams.set("uid", uid);
