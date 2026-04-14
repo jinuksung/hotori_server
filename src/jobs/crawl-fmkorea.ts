@@ -2,6 +2,8 @@
 // src/jobs/crawl-fmkorea.ts
 import "dotenv/config";
 import pino from "pino";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 
 import { crawlFmkorea } from "./sources/fmkorea";
 
@@ -9,6 +11,7 @@ console.log("[BOOT] crawl-fmkorea.ts loaded", new Date().toISOString());
 
 const LOG_LEVEL = process.env.LOG_LEVEL ?? "info";
 const logger = pino({ level: LOG_LEVEL });
+const execFileAsync = promisify(execFile);
 
 // 역할: FM코리아 크롤러를 실행하고 결과를 로그로 남긴다.
 async function main() {
@@ -16,6 +19,19 @@ async function main() {
   console.log("[INFO] crawl fmkorea job started");
 
   const stats = await crawlFmkorea();
+
+  try {
+    await execFileAsync("npx", ["tsx", "scripts/resolveStructuredLinks.ts"], {
+      cwd: process.cwd(),
+      env: process.env,
+    });
+    await execFileAsync("npx", ["tsx", "scripts/resolveRedirectLinks.ts"], {
+      cwd: process.cwd(),
+      env: process.env,
+    });
+  } catch (error) {
+    logger.warn({ job: "crawl:fmkorea", error }, "post-crawl link resolve failed");
+  }
 
   logger.info({ job: "crawl:fmkorea", ...stats }, "crawl fmkorea job finished");
   console.log("[DONE]", stats);

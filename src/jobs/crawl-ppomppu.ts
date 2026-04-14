@@ -1,19 +1,22 @@
-// 역할: 루리웹 크롤링 엔트리 실행 파일.
-
+import "dotenv/config";
 import pino from "pino";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { crawlRuliweb } from "./sources/ruliweb";
 
-console.log("[BOOT] crawl-ruliweb.ts loaded", new Date().toISOString());
+import { crawlPpomppu } from "./sources/ppomppu";
+
+console.log("[BOOT] crawl-ppomppu.ts loaded", new Date().toISOString());
 
 const LOG_LEVEL = process.env.LOG_LEVEL ?? "info";
 const logger = pino({ level: LOG_LEVEL });
 const execFileAsync = promisify(execFile);
 
-// 역할: 루리웹 크롤링을 실행하고 결과를 출력한다.
 async function main() {
-  const stats = await crawlRuliweb();
+  logger.info({ job: "crawl:ppomppu" }, "crawl ppomppu job started");
+  console.log("[INFO] crawl ppomppu job started");
+
+  const stats = await crawlPpomppu();
+
   try {
     await execFileAsync("npx", ["tsx", "scripts/resolveStructuredLinks.ts"], {
       cwd: process.cwd(),
@@ -24,13 +27,15 @@ async function main() {
       env: process.env,
     });
   } catch (error) {
-    logger.warn({ job: "crawl:ruliweb", error }, "post-crawl link resolve failed");
+    logger.warn({ job: "crawl:ppomppu", error }, "post-crawl link resolve failed");
   }
+
+  logger.info({ job: "crawl:ppomppu", ...stats }, "crawl ppomppu job finished");
   console.log("[DONE]", stats);
 }
 
 main().catch((error) => {
-  logger.error({ job: "crawl:ruliweb", error }, "crawl ruliweb job failed");
-  console.log("[FATAL] crawl ruliweb failed", error);
+  logger.error({ job: "crawl:ppomppu", error }, "crawl ppomppu job failed unexpectedly");
+  console.log("[FATAL] crawl ppomppu job failed", error);
   process.exitCode = 1;
 });
