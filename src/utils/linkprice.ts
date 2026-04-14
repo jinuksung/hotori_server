@@ -18,7 +18,7 @@ const LINKPRICE_API_PATH = process.env.LINKPRICE_API_PATH?.trim() || "/ci/servic
 export function isLinkPriceSupportedUrl(url: string): boolean {
   try {
     const hostname = new URL(url).hostname.toLowerCase();
-    return ["www.gmarket.co.kr", "gmarket.co.kr", "www.auction.co.kr", "auction.co.kr", "www.lotteon.com", "lotteon.com"].includes(hostname);
+    return ["www.gmarket.co.kr", "gmarket.co.kr", "item.gmarket.co.kr", "www.auction.co.kr", "auction.co.kr", "www.lotteon.com", "lotteon.com"].includes(hostname);
   } catch {
     return false;
   }
