@@ -13,7 +13,7 @@ type LinkPriceDeepLinkResponse = {
 };
 
 const LINKPRICE_API_BASE = process.env.LINKPRICE_API_BASE?.trim() || "https://api.linkprice.com";
-const LINKPRICE_API_PATH = process.env.LINKPRICE_API_PATH?.trim() || "/affiliateLink";
+const LINKPRICE_API_PATH = process.env.LINKPRICE_API_PATH?.trim() || "/ci/service/custom_link_xml";
 
 export function isLinkPriceSupportedUrl(url: string): boolean {
   try {
@@ -33,9 +33,10 @@ export async function createLinkPriceDeepLink(url: string): Promise<string> {
   }
 
   const endpoint = new URL(LINKPRICE_API_PATH, LINKPRICE_API_BASE);
-  endpoint.searchParams.set("aid", aid);
-  endpoint.searchParams.set("murl", url);
-  if (uid) endpoint.searchParams.set("uid", uid);
+  endpoint.searchParams.set("a_id", aid);
+  endpoint.searchParams.set("url", url);
+  if (uid) endpoint.searchParams.set("saved_u_id", uid);
+  endpoint.searchParams.set("mode", "json");
 
   const response = await fetch(endpoint.toString(), {
     method: "GET",
