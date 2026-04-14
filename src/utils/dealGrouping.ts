@@ -39,7 +39,44 @@ function normalizeUrlForGroup(url: string): string | null {
 
     if (host.endsWith("auction.co.kr")) {
       const itemNo = pick("itemno") ?? pick("ItemNo");
-      return itemNo ? `${host}${path}|itemNo=${itemNo}` : `${host}${path}`;
+      const itemNoFromPath = path.match(/\/(?:item|products)\/(\d+)/i)?.[1] ?? null;
+      const itemId = itemNo ?? itemNoFromPath;
+      return itemId ? `${host}${path}|itemNo=${itemId}` : `${host}${path}`;
+    }
+
+    if (host.endsWith("11st.co.kr")) {
+      const productId = pick("prdNo") ?? pick("productNo") ?? pick("trTypeCd") ?? null;
+      const productIdFromPath = path.match(/\/products\/(\d+)/i)?.[1] ?? null;
+      const itemId = productIdFromPath ?? productId;
+      return itemId ? `${host}${path}|prdNo=${itemId}` : `${host}${path}`;
+    }
+
+    if (host.endsWith("ssg.com")) {
+      const itemId = pick("itemId") ?? pick("siteNo") ?? null;
+      const itemIdFromPath = path.match(/\/item\/itemView\.sm\/(\d+)/i)?.[1] ?? null;
+      const resolved = itemIdFromPath ?? itemId;
+      return resolved ? `${host}${path}|itemId=${resolved}` : `${host}${path}`;
+    }
+
+    if (host.endsWith("gsshop.com")) {
+      const goodsCode = pick("goodsCode") ?? pick("prdid") ?? pick("goods_no");
+      const goodsCodeFromPath = path.match(/\/(?:prd|goods)\/(\d+)/i)?.[1] ?? null;
+      const itemId = goodsCodeFromPath ?? goodsCode;
+      return itemId ? `${host}${path}|goodsCode=${itemId}` : `${host}${path}`;
+    }
+
+    if (host.endsWith("e-himart.co.kr")) {
+      const goodsNo = pick("goodsNo") ?? pick("prodNo");
+      const goodsNoFromPath = path.match(/\/app\/goods\/goodsDetail\?goodsNo=(\d+)/i)?.[1] ?? null;
+      const itemId = goodsNo ?? goodsNoFromPath;
+      return itemId ? `${host}${path}|goodsNo=${itemId}` : `${host}${path}`;
+    }
+
+    if (host.endsWith("todaypick1.com") || host.endsWith("futureterior.com")) {
+      const productId = pick("product_no") ?? pick("goodsNo") ?? null;
+      const productIdFromPath = path.match(/\/product\/.+\/(\d+)\/?$/i)?.[1] ?? null;
+      const itemId = productIdFromPath ?? productId;
+      return itemId ? `${host}${path}|productId=${itemId}` : `${host}${path}`;
     }
 
     if (host.endsWith("lotteon.com")) {
