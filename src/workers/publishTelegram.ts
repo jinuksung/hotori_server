@@ -153,6 +153,40 @@ async function markQueueSendFailed(id: number, errorMessage: string): Promise<vo
   );
 }
 
+async function markQueueBlocked(id: number, reason: string): Promise<void> {
+  await query(
+    `update public.deal_publish_queue
+     set status = 'blocked',
+         sent_at = null,
+         send_error = null,
+         reason = $2,
+         updated_at = now()
+     where id = $1
+       and status = 'sending'`,
+    [id, reason],
+  );
+}
+
+async function hasAlreadySentDuplicate(dealId: number): Promise<{ duplicateDealId: number | null; dealGroupKey: string | null }> {
+  const result = await query<{ duplicateDealId: number | null; dealGroupKey: string | null }>(
+    `select d2.id as "duplicateDealId",
+            d.deal_group_key as "dealGroupKey"
+     from public.deals d
+     join public.deals d2 on d2.deal_group_key = d.deal_group_key and d2.id <> d.id
+     join public.deal_publish_queue q2 on q2.deal_id = d2.id
+     where d.id = $1
+       and d.deal_group_key is not null
+       and q2.channel = $2
+       and q2.status = 'sent'
+       and q2.sent_at >= now() - interval '72 hours'
+     order by q2.sent_at desc
+     limit 1`,
+    [dealId, TELEGRAM_HOTDEAL_CHANNEL],
+  );
+
+  return result.rows[0] ?? { duplicateDealId: null, dealGroupKey: null };
+}
+
 function formatError(error: unknown): string {
   if (error instanceof Error) return error.message;
   if (typeof error === "string") return error;
@@ -270,6 +304,24 @@ async function processBatch(): Promise<{ processed: number; sent: number; failed
       await markQueueSendFailed(row.id, message);
       failed += 1;
       logger.error({ queueId: row.id, dealId: row.dealId, error: message }, "telegram send failed");
+      continue;
+    }
+
+    const duplicate = await hasAlreadySentDuplicate(row.dealId);
+    if (duplicate.duplicateDealId) {
+      await markQueueBlocked(
+        row.id,
+        `duplicate_sent_before_publish:${duplicate.duplicateDealId}:${duplicate.dealGroupKey ?? ''}`,
+      );
+      logger.warn(
+        {
+          queueId: row.id,
+          dealId: row.dealId,
+          duplicateDealId: duplicate.duplicateDealId,
+          dealGroupKey: duplicate.dealGroupKey,
+        },
+        "telegram publish blocked duplicate before send",
+      );
       continue;
     }
 
