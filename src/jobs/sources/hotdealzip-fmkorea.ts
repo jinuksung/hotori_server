@@ -271,7 +271,7 @@ async function persistDeal(
     }
 
     if (rawShopName) {
-      normalizedShopName = await findNormalizedShopName(SOURCE, rawShopName, client);
+      normalizedShopName = (await findNormalizedShopName(SOURCE, rawShopName, client)) ?? rawShopName;
     }
 
     const subcategory = inferSubcategory(resolvedCategoryId, dealTitle, null, null);
