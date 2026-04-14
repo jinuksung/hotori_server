@@ -436,21 +436,33 @@ async function persistDeal(
       client,
     );
 
-    if (purchaseUrl && normalizedPurchaseUrl && purchaseDomain) {
+    const candidateLinks = Array.from(
+      new Set([
+        ...(normalizedPurchaseUrl ? [normalizedPurchaseUrl] : []),
+        ...((detail.outboundLinks ?? [])
+          .map((url) => normalizeUrl(url) ?? url)
+          .filter((url): url is string => !!url)),
+      ]),
+    );
+
+    for (const candidateUrl of candidateLinks) {
+      const candidateDomain = extractDomain(candidateUrl);
+      if (!candidateDomain) continue;
+
       await insertLink(
         {
           dealId,
-          url: normalizedPurchaseUrl,
-          domain: purchaseDomain,
+          url: candidateUrl,
+          domain: candidateDomain,
           isAffiliate: false,
         },
         client,
       );
 
-      if (shouldTrackForManualResolution(normalizedPurchaseUrl)) {
+      if (shouldTrackForManualResolution(candidateUrl)) {
         await upsertPendingLinkResolution(
           {
-            sourceUrl: normalizedPurchaseUrl,
+            sourceUrl: candidateUrl,
             sourceName: SOURCE,
             dealId,
             note: dealTitle,
