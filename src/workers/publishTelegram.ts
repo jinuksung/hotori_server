@@ -14,10 +14,16 @@ type ClaimedQueueRow = {
   payloadJson: Record<string, unknown> | null;
   title: string;
   price: string | null;
+  currencyCode: string | null;
   shopName: string | null;
   categoryName: string | null;
   thumbnailUrl: string | null;
   purchaseUrl: string | null;
+  foodGroup: string | null;
+  unitBasis: string | null;
+  unitPrice: string | null;
+  benchmarkSampleSize: number | null;
+  benchmarkP25: string | null;
 };
 
 const logger = pino({ level: process.env.LOG_LEVEL ?? "info" });
@@ -65,22 +71,53 @@ async function claimApprovedRows(limit: number): Promise<ClaimedQueueRow[]> {
        select c.id,
               c."dealId",
               c."payloadJson",
-              d.title,
-              d.price::text as price,
-              d.shop_name as "shopName",
-              d.thumbnail_url as "thumbnailUrl",
-              cat.name as "categoryName",
-              link.url as "purchaseUrl"
+              coalesce(pref.title, d.title) as title,
+              coalesce(pref.price::text, d.price::text) as price,
+              coalesce(pref.currency_code, d.currency_code) as "currencyCode",
+              coalesce(pref.shop_name, d.shop_name) as "shopName",
+              coalesce(pref.thumbnail_url, d.thumbnail_url) as "thumbnailUrl",
+              coalesce(pref_cat.name, cat.name) as "categoryName",
+              coalesce(pref_link.url, link.url) as "purchaseUrl",
+              m.food_group as "foodGroup",
+              m.unit_basis as "unitBasis",
+              m.unit_price::text as "unitPrice",
+              b.sample_size as "benchmarkSampleSize",
+              b.p25::text as "benchmarkP25"
        from claimed c
        join public.deals d on d.id = c."dealId"
        left join public.categories cat on cat.id = d.category_id
        left join lateral (
+         select d2.*
+         from public.deals d2
+         join public.deal_sources ds2 on ds2.deal_id = d2.id
+         where d.deal_group_key is not null
+           and d2.deal_group_key = d.deal_group_key
+           and ds2.source in ('aliexpress_hot', 'coupang_goldbox')
+         order by case ds2.source when 'aliexpress_hot' then 1 when 'coupang_goldbox' then 2 else 99 end,
+                  d2.updated_at desc,
+                  d2.id desc
+         limit 1
+       ) pref on true
+       left join public.categories pref_cat on pref_cat.id = pref.category_id
+       left join lateral (
          select dl.url
          from public.deal_links dl
          where dl.deal_id = d.id
+           and coalesce(dl.domain, '') not in ('ppomppu.co.kr', 'www.ppomppu.co.kr', 'fmkorea.com', 'www.fmkorea.com', 'ruliweb.com', 'www.ruliweb.com')
          order by dl.is_affiliate desc, dl.id asc
          limit 1
        ) link on true
+       left join lateral (
+         select dl.url
+         from public.deal_links dl
+         where pref.id is not null
+           and dl.deal_id = pref.id
+           and coalesce(dl.domain, '') not in ('ppomppu.co.kr', 'www.ppomppu.co.kr', 'fmkorea.com', 'www.fmkorea.com', 'ruliweb.com', 'www.ruliweb.com')
+         order by dl.is_affiliate desc, dl.id asc
+         limit 1
+       ) pref_link on true
+       left join public.deal_food_unit_metrics m on m.deal_id = d.id
+       left join public.food_group_price_benchmarks b on b.food_group = m.food_group and b.unit_basis = m.unit_basis
        order by c.id asc`,
       [TELEGRAM_HOTDEAL_CHANNEL, limit],
       client,
@@ -126,12 +163,17 @@ function formatError(error: unknown): string {
   }
 }
 
-function formatPrice(input: string | null): string | null {
+function formatPrice(input: string | null, currencyCode: string | null): string | null {
   if (!input) return null;
   const normalized = input.replace(/,/g, "");
   const value = Number(normalized);
   if (!Number.isFinite(value)) return input;
-  return Math.round(value).toString();
+
+  const currency = (currencyCode ?? "KRW").toUpperCase();
+  if (currency === "USD") {
+    return `$${value.toFixed(2).replace(/0+$/, "").replace(/\.$/, "")}`;
+  }
+  return `${Math.round(value).toLocaleString("ko-KR")}원`;
 }
 
 async function sendTelegramMessage(text: string, topicId: string): Promise<void> {
@@ -141,9 +183,11 @@ async function sendTelegramMessage(text: string, topicId: string): Promise<void>
       "content-type": "application/x-www-form-urlencoded",
     },
     body: new URLSearchParams({
-      chat_id: TELEGRAM_CHAT_ID,
+      chat_id: TELEGRAM_CHAT_ID ?? "",
       message_thread_id: topicId,
       text,
+      parse_mode: "MarkdownV2",
+      disable_web_page_preview: "true",
     }),
   });
 
@@ -166,10 +210,11 @@ async function sendTelegramPhoto(payload: {
       "content-type": "application/x-www-form-urlencoded",
     },
     body: new URLSearchParams({
-      chat_id: TELEGRAM_CHAT_ID,
+      chat_id: TELEGRAM_CHAT_ID ?? "",
       message_thread_id: payload.topicId,
       photo: payload.photo,
       caption: payload.caption,
+      parse_mode: "MarkdownV2",
     }),
   });
 
@@ -191,13 +236,23 @@ async function processBatch(): Promise<{ processed: number; sent: number; failed
   let failed = 0;
 
   for (const row of rows) {
-    const link = row.purchaseUrl ?? extractQueueLinkFromPayload(row.payloadJson);
+    const mergedPayload = {
+      ...(row.payloadJson ?? {}),
+      ...(row.foodGroup ? { foodGroup: row.foodGroup } : {}),
+      ...(row.unitBasis ? { unitBasis: row.unitBasis } : {}),
+      ...(row.unitPrice ? { unitPrice: row.unitPrice } : {}),
+      ...(row.benchmarkSampleSize != null ? { benchmarkSampleSize: row.benchmarkSampleSize } : {}),
+      ...(row.benchmarkP25 ? { benchmarkP25: row.benchmarkP25 } : {}),
+      ...(row.purchaseUrl ? { representativeUrl: row.purchaseUrl } : {}),
+    };
+    const link = row.purchaseUrl ?? extractQueueLinkFromPayload(mergedPayload);
     const text = buildTelegramMessage({
       title: row.title,
-      price: formatPrice(row.price),
+      price: formatPrice(row.price, row.currencyCode),
       shopName: row.shopName,
       categoryName: row.categoryName,
       link,
+      payloadJson: mergedPayload,
     });
 
     const category = (row.categoryName ?? "").toUpperCase();
