@@ -89,6 +89,19 @@ function buildHotdealScore(payloadJson: Record<string, unknown> | null): string 
   return "🌰".repeat(score);
 }
 
+function looksLikeAffiliateLink(link: string | null): boolean {
+  if (!link) return false;
+  try {
+    const host = new URL(link).hostname.toLowerCase();
+    return host === "link.coupang.com"
+      || host === "click.linkprice.com"
+      || host.endsWith(".linkprice.com")
+      || host === "s.click.aliexpress.com";
+  } catch {
+    return false;
+  }
+}
+
 export function buildTelegramMessage(input: TelegramMessageInput): string {
   const lines: string[] = [];
 
@@ -114,6 +127,10 @@ export function buildTelegramMessage(input: TelegramMessageInput): string {
 
   if (input.link) {
     lines.push(`[구매하러 가기](${input.link})`);
+  }
+
+  if (looksLikeAffiliateLink(input.link)) {
+    lines.push("제휴링크 포함");
   }
 
   return lines.join("\n");
