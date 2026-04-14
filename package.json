@@ -15,6 +15,7 @@
     "affiliate:coupang": "tsx src/jobs/coupangAffiliate.ts",
     "affiliate:aliexpress": "tsx src/jobs/aliexpressAffiliate.ts",
     "aliexpress:hot": "tsx src/jobs/aliexpressHotProducts.ts",
+    "coupang:goldbox": "tsx src/jobs/coupangGoldbox.ts",
     "publish:telegram-hotdeals": "tsx scripts/publishTelegramHotdeals.ts",
     "publish:telegram-approved": "tsx scripts/publishTelegramApproved.ts",
     "publish:worker": "tsx src/workers/publishTelegram.ts",
@@ -25,7 +26,10 @@
     "seed:shop-names": "tsx scripts/seedShopNameMappings.ts",
     "seed:categories": "tsx scripts/seedCategories.ts",
     "typecheck": "tsc --noEmit",
-    "test:parsers": "tsx tests/parsers/fmkorea.smoke.ts"
+    "test:parsers": "tsx tests/parsers/fmkorea.smoke.ts",
+    "backfill:ppomppu-links": "tsx scripts/backfillPpomppuPurchaseLinks.ts",
+    "sample:food-unit-metrics": "tsx scripts/sampleFoodUnitMetrics.ts",
+    "fetch:naver-shopping-keywords": "tsx scripts/fetchNaverShoppingKeywords.ts"
   },
   "keywords": [],
   "author": "",
