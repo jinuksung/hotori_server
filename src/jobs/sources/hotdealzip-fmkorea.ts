@@ -276,7 +276,7 @@ async function persistDeal(
 
     const subcategory = inferSubcategory(resolvedCategoryId, dealTitle, null, null);
     const dealGroupKey = buildDealGroupKey({
-      categoryName: inferredCategoryName,
+      categoryName: null,
       title: dealTitle,
       representativeUrl: normalizedPurchaseUrl,
     });

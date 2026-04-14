@@ -336,7 +336,7 @@ async function persistDeal(
       purchaseDomain ? [purchaseDomain] : null,
     );
     const dealGroupKey = buildDealGroupKey({
-      categoryName: inferredCategoryName,
+      categoryName: null,
       title: dealTitle,
       representativeUrl: normalizedPurchaseUrl,
     });
