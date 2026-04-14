@@ -102,8 +102,21 @@ function looksLikeAffiliateLink(link: string | null): boolean {
   }
 }
 
+function buildTrendLabel(payloadJson: Record<string, unknown> | null): string | null {
+  if (!payloadJson) return null;
+  const approvedBy = typeof payloadJson.approvedBy === "string" ? payloadJson.approvedBy : null;
+  const trendScore = toNumber(payloadJson.trendScore);
+  if (approvedBy !== "approveTrendingRecentNonFood" || trendScore == null) return null;
+  return "🔥 현재 커뮤 관심 급상승딜";
+}
+
 export function buildTelegramMessage(input: TelegramMessageInput): string {
   const lines: string[] = [];
+  const trendLabel = buildTrendLabel(input.payloadJson);
+
+  if (trendLabel) {
+    lines.push(trendLabel);
+  }
 
   lines.push(`*${escapeMarkdown(input.title)}*`);
 
