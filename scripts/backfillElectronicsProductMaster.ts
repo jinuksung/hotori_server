@@ -23,7 +23,8 @@ type SearchResponse = {
 };
 
 const CATEGORY_IDS = [1, 5];
-const LIMIT = Number(process.env.PRODUCT_MASTER_BACKFILL_LIMIT ?? "50");
+const LIMIT = Number(process.env.PRODUCT_MASTER_BACKFILL_LIMIT ?? "10");
+const REQUEST_DELAY_MS = Number(process.env.PRODUCT_MASTER_REQUEST_DELAY_MS ?? "1500");
 
 function buildAuthorization(path: string, queryString: string) {
   const accessKey = process.env.COUPANG_ACCESS_KEY?.trim();
@@ -42,6 +43,10 @@ function buildAuthorization(path: string, queryString: string) {
   return `CEA algorithm=HmacSHA256, access-key=${accessKey}, signed-date=${signedDate}, signature=${signature}`;
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function normalizeTitle(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9가-힣]+/g, " ").replace(/\s+/g, " ").trim();
 }
@@ -53,6 +58,17 @@ function tokenOverlapScore(a: string, b: string): number {
   let overlap = 0;
   for (const token of aTokens) if (bTokens.has(token)) overlap += 1;
   return overlap / Math.max(aTokens.size, bTokens.size);
+}
+
+function buildSearchKeyword(title: string): string {
+  const cleaned = title
+    .replace(/\([^)]*\)/g, " ")
+    .replace(/\[[^\]]*\]/g, " ")
+    .replace(/[,+]/g, " ")
+    .replace(/\b(무료배송|무배|특가|핫딜|국내정발|해외직구|관부가세포함)\b/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return cleaned.slice(0, 50);
 }
 
 async function search(keyword: string): Promise<SearchProduct[]> {
@@ -89,12 +105,21 @@ async function main() {
   let failed = 0;
 
   for (const deal of deals.rows) {
+    const keyword = buildSearchKeyword(deal.title);
+    if (!keyword) {
+      skipped += 1;
+      continue;
+    }
+
     let results: SearchProduct[] = [];
     try {
-      results = await search(deal.title);
+      results = await search(keyword);
     } catch (error) {
       failed += 1;
-      console.error({ dealId: deal.id, title: deal.title, error });
+      console.error({ dealId: deal.id, title: deal.title, keyword, error });
+      if (String(error).includes('rCode":"403')) {
+        break;
+      }
       continue;
     }
     const best = results
@@ -135,9 +160,10 @@ async function main() {
     );
 
     matched += 1;
+    await sleep(REQUEST_DELAY_MS);
   }
 
-  console.log(JSON.stringify({ scanned: deals.rows.length, matched, skipped, failed }, null, 2));
+  console.log(JSON.stringify({ scanned: deals.rows.length, matched, skipped, failed, requestDelayMs: REQUEST_DELAY_MS }, null, 2));
 }
 
 main().catch((error) => {
