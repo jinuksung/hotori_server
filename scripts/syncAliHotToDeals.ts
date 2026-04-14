@@ -83,7 +83,7 @@ async function main() {
           {
             categoryId,
             title: row.product_title,
-            shopName: row.shop_name,
+            shopName: "알리익스프레스",
             subcategory: null,
             price,
             shippingType,
@@ -101,7 +101,7 @@ async function main() {
           {
             categoryId,
             title: row.product_title,
-            shopName: row.shop_name,
+            shopName: "알리익스프레스",
             subcategory: null,
             price,
             shippingType,
@@ -123,7 +123,7 @@ async function main() {
           sourceCategoryId: null,
           title: row.product_title,
           thumbUrl: row.image_url,
-          shopNameRaw: row.shop_name,
+          shopNameRaw: "AliExpress",
         },
         client,
       );
