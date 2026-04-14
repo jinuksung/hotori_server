@@ -29,8 +29,13 @@ function resolveStructuredUrl(url: string): string | null {
     }
 
     if (host === "s.ppomppu.co.kr") {
-      const target = parsed.searchParams.get("url") ?? parsed.searchParams.get("u");
-      return target ? decodeURIComponent(target) : null;
+      const target = parsed.searchParams.get("target") ?? parsed.searchParams.get("url") ?? parsed.searchParams.get("u");
+      if (!target) return null;
+      try {
+        return Buffer.from(target, "base64").toString("utf8");
+      } catch {
+        return decodeURIComponent(target);
+      }
     }
 
     if (host === "link.gmarket.co.kr") {
