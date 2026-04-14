@@ -115,6 +115,23 @@ type DealPublishCandidate = {
   duplicateSentDealId: number | null;
 };
 
+function getFoodHotdealScore(
+  unitPrice: number | null,
+  benchmarkP25: number | null,
+  benchmarkSampleSize: number | null,
+): number {
+  if (unitPrice == null || benchmarkP25 == null || benchmarkP25 <= 0 || (benchmarkSampleSize ?? 0) < 5) {
+    return 0;
+  }
+
+  const ratio = unitPrice / benchmarkP25;
+  if (ratio <= 0.55) return 5;
+  if (ratio <= 0.75) return 4;
+  if (ratio <= 1.0) return 3;
+  if (ratio <= 1.25) return 2;
+  return 1;
+}
+
 function isBlockedCommunityUrl(value: string | null | undefined): boolean {
   if (!value) return false;
   try {
@@ -172,19 +189,17 @@ function decidePublish(row: DealPublishCandidate): PublishDecision {
   }
 
   const autoApproveFoodCheap = process.env.AUTO_APPROVE_FOOD_CHEAP === "true";
+  const foodHotdealScore = getFoodHotdealScore(row.unitPrice, row.benchmarkP25, row.benchmarkSampleSize);
   const isCheapFoodCandidate =
     autoApproveFoodCheap
     && (row.categoryName ?? "").trim().toUpperCase() === "FOOD"
-    && row.unitPrice !== null
-    && row.benchmarkP25 !== null
-    && row.unitPrice < row.benchmarkP25
-    && (row.benchmarkSampleSize ?? 0) >= 8
+    && foodHotdealScore >= 3
     && (row.confidence ?? 0) >= 0.8
     && !/(3종|골라담기|외\s*\d+종|혼합|세트|구성)/i.test(row.title);
 
   return {
     status: autoApproveFoodCheap && isCheapFoodCandidate ? "approved" : "ready",
-    score: isCheapFoodCandidate ? 2 : 1,
+    score: isCheapFoodCandidate ? foodHotdealScore : 1,
     reason: isCheapFoodCandidate
       ? "auto_approved_food_cheap"
       : (row.resolvedUrl ? "ready_resolved_url" : "ready_purchase_url"),
@@ -197,6 +212,7 @@ function decidePublish(row: DealPublishCandidate): PublishDecision {
       unitPrice: row.unitPrice,
       benchmarkSampleSize: row.benchmarkSampleSize,
       benchmarkP25: row.benchmarkP25,
+      hotdealScore: foodHotdealScore,
       dealGroupKey: row.dealGroupKey,
     },
   };
