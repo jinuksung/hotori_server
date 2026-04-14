@@ -4,7 +4,6 @@ import { createDeal, updateDeal } from "../src/db/repos/deals.repo";
 import { findBySourcePost, upsertSource } from "../src/db/repos/dealSources.repo";
 import { insertLink } from "../src/db/repos/links.repo";
 import { evaluateAndUpsertPublishQueue } from "../src/jobs/publishHelpers";
-import { buildDealGroupKey } from "../src/utils/dealGrouping";
 import { extractDomain } from "../src/utils/url";
 import type { ShippingType } from "../src/types";
 
@@ -19,6 +18,10 @@ type AliRow = {
   mapped_category_id: string | null;
   shop_name: string | null;
 };
+
+function buildAliDealGroupKey(productId: string): string {
+  return `url:aliexpress:itemId=${productId}`;
+}
 
 const SOURCE = "aliexpress_hot";
 const MIN_SALE_PRICE = Number(process.env.ALIEXPRESS_HOT_MIN_SALE_PRICE ?? "10000");
@@ -70,11 +73,7 @@ async function main() {
       const representativeUrl = pickRepresentativeUrl(row);
       const price = pickPrice(row);
       const categoryId = Number(row.mapped_category_id);
-      const dealGroupKey = buildDealGroupKey({
-        categoryName: null,
-        title: row.product_title,
-        representativeUrl,
-      });
+      const dealGroupKey = buildAliDealGroupKey(row.product_id);
       const shippingType = inferShippingType(representativeUrl);
 
       let dealId = existingSource?.dealId ?? null;

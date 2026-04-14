@@ -49,6 +49,18 @@ async function sendPhoto(payload: {
   }
 }
 
+function pickDisplayShopName(shopName: string | null, affiliateUrl: string): string | null {
+  try {
+    const host = new URL(affiliateUrl).hostname.toLowerCase();
+    if (host === "s.click.aliexpress.com" || host.endsWith(".aliexpress.com") || host === "aliexpress.com") {
+      return "알리익스프레스";
+    }
+  } catch {
+    // noop
+  }
+  return shopName;
+}
+
 function formatCaption(input: {
   categoryName: string;
   title: string;
@@ -58,11 +70,12 @@ function formatCaption(input: {
   affiliateUrl: string;
 }) {
   const lines: string[] = [];
+  const displayShopName = pickDisplayShopName(input.shopName, input.affiliateUrl);
   lines.push(`[${input.categoryName}] 딜 발송`);
   lines.push(`- 제목: ${input.title}`);
   if (input.price) lines.push(`- 가격: ${input.price}원`);
   lines.push(`- 배송: ${input.shippingType}`);
-  if (input.shopName) lines.push(`- 스토어: ${input.shopName}`);
+  if (displayShopName) lines.push(`- 스토어: ${displayShopName}`);
   lines.push(`- 링크: ${input.affiliateUrl}`);
   return lines.join("\n");
 }
