@@ -33,6 +33,7 @@ const TELEGRAM_CHAT_ID = process.env.TELEGRAM_TARGET_CHAT_ID?.trim();
 const TOPIC_HOME = process.env.TELEGRAM_TOPIC_HOME?.trim();
 const TOPIC_FOOD = process.env.TELEGRAM_TOPIC_FOOD?.trim();
 const TOPIC_DIGITAL = process.env.TELEGRAM_TOPIC_DIGITAL?.trim();
+const TOPIC_FASHION = process.env.TELEGRAM_TOPIC_FASHION?.trim() ?? "341";
 const CLAIM_LIMIT = Number(process.env.PUBLISH_WORKER_BATCH_LIMIT ?? 5);
 const LOOP = process.env.PUBLISH_WORKER_LOOP === "true";
 const LOOP_INTERVAL_MS = Number(process.env.PUBLISH_WORKER_INTERVAL_MS ?? 30_000);
@@ -297,7 +298,9 @@ async function processBatch(): Promise<{ processed: number; sent: number; failed
           ? TOPIC_FOOD
           : category === "DIGITAL" || category === "ELECTRONICS"
             ? TOPIC_DIGITAL
-            : undefined;
+            : category === "FASHION"
+              ? TOPIC_FASHION
+              : undefined;
 
     if (!topicId) {
       const message = `unknown category or topic mapping: ${row.categoryName ?? ""}`;
