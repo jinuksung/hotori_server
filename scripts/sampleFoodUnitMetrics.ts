@@ -18,6 +18,13 @@ type ParsedMetric = {
   confidence: number;
 };
 
+type MeasuredAmount = {
+  amount: number;
+  raw: string;
+  confidence: number;
+  includesMultiplier?: boolean;
+};
+
 const NON_CORE_EXTRA_REGEX = /(전용잔|증정|사은품|컵|굿즈|소스)/i;
 const COUNT_UNIT_PATTERN = "(?:개입|입|개|봉|팩|캔|병|포|과|박스|세트|묶음)";
 const COUNT_TOKEN_REGEX = /(\d+)\s*(개입|입|개|봉|팩|캔|병|포|과|박스|세트|묶음)(?=\s|x|\*|\+|,|\(|$|\))/i;
@@ -188,7 +195,7 @@ function parseFoodMetric(title: string, price: number): ParsedMetric {
 
   const grams = extractMeasuredAmount(normalized, /(\d+(?:\.\d+)?)\s*(kg|g)(?=\s|x|\*|\+|\/|,|$|\))/gi, "g");
   if (grams) {
-    const totalGrams = grams.amount * countMultiplier;
+    const totalGrams = grams.includesMultiplier ? grams.amount : grams.amount * countMultiplier;
     if (totalGrams > 0) {
       return applyOutlierGuards({
         foodGroup,
@@ -205,7 +212,7 @@ function parseFoodMetric(title: string, price: number): ParsedMetric {
 
   const mls = extractMeasuredAmount(normalized, /(\d+(?:\.\d+)?)\s*(ml|l|m)(?=\s|x|\*|\+|\/|,|$|\))/gi, "ml");
   if (mls) {
-    const totalMl = mls.amount * countMultiplier;
+    const totalMl = mls.includesMultiplier ? mls.amount : mls.amount * countMultiplier;
     if (totalMl > 0) {
       return applyOutlierGuards({
         foodGroup,
@@ -374,7 +381,7 @@ function extractMeasuredAmount(
   title: string,
   tokenRegex: RegExp,
   kind: "g" | "ml",
-): { amount: number; raw: string; confidence: number } | null {
+): MeasuredAmount | null {
   const convert = (value: number, unit: string) =>
     kind === "g"
       ? (unit === "kg" ? value * 1000 : value)
@@ -405,8 +412,15 @@ function extractMeasuredAmount(
       const excluded = analyzed.filter((x) => x.sameKindTokens.length > 0 && x.hasExtra);
       const mixedUnitComponents = analyzed.some((x) => x.hasOtherKind && x.sameKindTokens.length === 0);
       const nonFoodComponents = analyzed.some((x) => x.hasExtra && x.sameKindTokens.length === 0);
+      const sameKindValueCount = new Map<number, number>();
+      for (const entry of included) {
+        for (const token of entry.sameKindTokens) {
+          sameKindValueCount.set(token.value, (sameKindValueCount.get(token.value) ?? 0) + 1);
+        }
+      }
+      const hasRepeatedSameKindValue = [...sameKindValueCount.values()].some((count) => count >= 2);
 
-      if (mixedUnitComponents && included.length > 0) {
+      if ((mixedUnitComponents || hasRepeatedSameKindValue) && included.length > 0) {
         const aggregatedSameSize = new Map<number, { amount: number; raws: string[]; count: number }>();
         for (const entry of included) {
           const componentCountInfo = extractCountInfo(entry.component, true);
@@ -425,6 +439,7 @@ function extractMeasuredAmount(
             amount: best[1].amount,
             raw: best[1].raws.join(" + "),
             confidence: excluded.length > 0 || nonFoodComponents ? 0.58 : 0.84,
+            includesMultiplier: true,
           };
         }
         return null;
