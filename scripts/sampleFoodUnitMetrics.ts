@@ -409,11 +409,13 @@ function extractMeasuredAmount(
       if (mixedUnitComponents && included.length > 0) {
         const aggregatedSameSize = new Map<number, { amount: number; raws: string[]; count: number }>();
         for (const entry of included) {
+          const componentCountInfo = extractCountInfo(entry.component, true);
+          const componentMultiplier = Math.max(1, componentCountInfo.packCount);
           for (const token of entry.sameKindTokens) {
             const current = aggregatedSameSize.get(token.value) ?? { amount: 0, raws: [], count: 0 };
-            current.amount += token.value;
-            current.raws.push(token.raw);
-            current.count += 1;
+            current.amount += token.value * componentMultiplier;
+            current.raws.push(componentMultiplier > 1 ? `${token.raw} x ${componentMultiplier}개` : token.raw);
+            current.count += componentMultiplier;
             aggregatedSameSize.set(token.value, current);
           }
         }
